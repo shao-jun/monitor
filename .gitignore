@@ -1,0 +1,28 @@
+# 构建产物
+build/
+build-*/
+out/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+Makefile
+
+# 编译产物
+*.so
+*.so.*
+*.o
+*.a
+*.moc
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
