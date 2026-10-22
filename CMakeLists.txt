@@ -31,6 +31,10 @@ add_library(app-usage-monitor MODULE
     src/usagepopupwidget.h
     src/usagechart.cpp
     src/usagechart.h
+    src/restreminder.cpp
+    src/restreminder.h
+    src/restnotifier.cpp
+    src/restnotifier.h
     src/usageentry.h
 )
 

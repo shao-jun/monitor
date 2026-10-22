@@ -1,6 +1,7 @@
 #ifndef USAGETRACKER_H
 #define USAGETRACKER_H
 
+#include "restreminder.h"
 #include "usageentry.h"
 
 #include <QMap>
@@ -29,6 +30,15 @@ public:
     void stop();
 
     UsageStorage *storage() const { return m_storage; }
+
+    // 连续工作到点，该提醒休息了（参数：刚告一段落的连续工作时长，毫秒）
+    qint64 continuousWorkMs() const { return m_rest.continuousMs(); }
+    qint64 restWorkIntervalMs() const { return m_rest.workIntervalMs(); }
+    void setRestWorkIntervalMs(qint64 ms) { m_rest.setWorkIntervalMs(ms); }
+
+signals:
+    void restReminder(qint64 workedMs);
+    void continuousWorkChanged(qint64 workedMs);
 
 public slots:
     void flushNow();
@@ -60,6 +70,7 @@ private:
     QMap<QString, qint64> m_lockBuffer;
     QMap<QString, QMap<int, HourlyUsage>> m_hourBuffer;
     QMap<QString, QPair<QString, QString>> m_metaCache;
+    RestReminder m_rest;
 };
 
 #endif // USAGETRACKER_H

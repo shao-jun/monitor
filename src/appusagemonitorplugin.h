@@ -9,6 +9,7 @@ class UsageTracker;
 class UsagePopupWidget;
 class UsageStorage;
 class QLabel;
+class RestNotifier;
 
 class AppUsageMonitorPlugin : public QObject, public PluginsItemInterfaceV2
 {
@@ -30,12 +31,21 @@ public:
     Dock::PluginFlags flags() const override;
     QIcon icon(Dock::IconType, Dock::ThemeType) const override;
 
+private slots:
+    void onRestReminder(qint64 workedMs);
+    void onContinuousWorkChanged(qint64 workedMs);
+
 private:
+    QString notificationIconPath();
+
     QString m_itemKey;
     QLabel *m_itemLabel = nullptr;
     UsagePopupWidget *m_popup = nullptr;
     UsageTracker *m_tracker = nullptr;
     UsageStorage *m_storage = nullptr;
+    RestNotifier *m_notifier = nullptr;
+    QLabel *m_tips = nullptr;
+    QString m_notifyIcon;
 };
 
 #endif // APPUSAGEMONITORPLUGIN_H

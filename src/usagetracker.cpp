@@ -92,6 +92,9 @@ void UsageTracker::tick()
         } else if (dt > 0) {
             m_lockBuffer[QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd"))] += dt;
             m_hourBuffer[startDate][startHour].lockMs += dt;
+            // 锁屏满 3 分钟算一次中断，连续工作时长清零；不足 3 分钟则保留
+            m_rest.addLock(dt);
+            emit continuousWorkChanged(m_rest.continuousMs());
         }
         m_lastTickMs = now;
         m_lastIdleMs = idle;
@@ -101,6 +104,7 @@ void UsageTracker::tick()
         return;
     }
     m_locked = false;
+    m_rest.endLock();
 
     auto active = m_x11->activeApp();
 
@@ -164,6 +168,11 @@ void UsageTracker::tick()
         else
             h.activeMs = dt;
         m_hourBuffer[m_lastDate][startHour] += h;
+
+        // 操作、查看都算连续工作；满 30 分钟提醒一次休息
+        if (m_rest.addWork(dt))
+            emit restReminder(m_rest.workIntervalMs());
+        emit continuousWorkChanged(m_rest.continuousMs());
     }
 
     m_lastTickMs = now;
