@@ -6,6 +6,7 @@
 
 class UsageStorage;
 class HourlyChartWidget;
+class MonthlyChartWidget;
 class QLabel;
 class QPushButton;
 class QStackedWidget;
@@ -44,6 +45,7 @@ private:
 
     UsageStorage *m_storage;
     QDate m_date;
+    QDate m_dayBeforeMonth; // 从日视图切到月视图前停留的那一天
     Mode m_mode = Mode::Day;
 
     QLabel *m_title = nullptr;
@@ -55,6 +57,7 @@ private:
     QPushButton *m_modeBtn = nullptr;
     QStackedWidget *m_stack = nullptr;
     HourlyChartWidget *m_hourChart = nullptr;
+    MonthlyChartWidget *m_monthChart = nullptr;
     QPushButton *m_stackedBtn = nullptr;
     QPushButton *m_awakeBtn = nullptr;
     QPushButton *m_lineBtn = nullptr;

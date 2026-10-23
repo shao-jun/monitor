@@ -28,7 +28,9 @@ static QString formatShort(qint64 ms)
         return m > 0 ? QStringLiteral("%1小时%2分").arg(h).arg(m) : QStringLiteral("%1小时").arg(h);
     if (m > 0)
         return QStringLiteral("%1分").arg(m);
-    return QStringLiteral("%1秒").arg(s);
+    if (s > 0)
+        return QStringLiteral("%1秒").arg(s);
+    return QStringLiteral("0分");
 }
 
 static QIcon appIcon(const QString &icon)
@@ -44,10 +46,16 @@ static QIcon appIcon(const QString &icon)
 static void clearLayout(QLayout *layout)
 {
     while (QLayoutItem *item = layout->takeAt(0)) {
-        if (QWidget *w = item->widget())
+        if (QWidget *w = item->widget()) {
+            // deleteLater 要到下一轮事件循环才真正销毁，先隐藏并及时不再参与绘制，
+            // 否则旧内容会和新内容叠在一起闪一下（切月份时尤其明显）
+            w->hide();
+            w->setParent(nullptr);
             w->deleteLater();
-        else if (QLayout *l = item->layout())
+        } else if (QLayout *l = item->layout()) {
             clearLayout(l);
+            delete l;
+        }
         delete item;
     }
 }
@@ -144,13 +152,16 @@ public:
     explicit MonthlyChartWidget(QWidget *parent = nullptr)
         : QWidget(parent)
     {
-        setFixedHeight(120);
+        setFixedHeight(132);
+        setMouseTracking(true);
     }
 
-    void setData(const QVector<QPair<int, qint64>> &data, int daysInMonth)
+    // volumes: 每天的总用时（毫秒），day 从 1 开始；daysInMonth 为当月天数
+    void setData(const QVector<QPair<int, qint64>> &volumes, int daysInMonth, int todayDay = -1)
     {
-        m_data = data;
+        m_data = volumes;
         m_days = daysInMonth;
+        m_today = todayDay;
         update();
     }
 
@@ -159,33 +170,75 @@ protected:
     {
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-        const QRect r = rect().adjusted(4, 4, -4, -4);
+        p.setRenderHint(QPainter::TextAntialiasing);
+
+        const QRectF full = rect();
+        QFont axisFont = font();
+        axisFont.setPixelSize(8);
+        p.setFont(axisFont);
+
         if (m_data.isEmpty() || m_days <= 0) {
             p.setPen(secondaryColor());
-            p.drawText(r, Qt::AlignCenter, QStringLiteral("本月暂无记录"));
+            p.drawText(full, Qt::AlignCenter, QStringLiteral("本月暂无记录"));
             return;
         }
 
         qint64 maxTotal = 0;
-        for (const auto &e : m_data)
+        QMap<int, qint64> byDay;
+        for (const auto &e : m_data) {
+            byDay.insert(e.first, e.second);
             maxTotal = qMax(maxTotal, e.second);
+        }
         if (maxTotal <= 0)
             maxTotal = 1;
 
-        const double slotW = (double)r.width() / m_days;
-        const double barW = qMax(2.0, slotW * 0.7);
-        for (const auto &e : m_data) {
-            const int day = e.first;
-            const qint64 total = e.second;
-            const double hh = (double)total / (double)maxTotal * r.height();
-            const double x = r.left() + (day - 1) * slotW + (slotW - barW) / 2.0;
-            p.fillRect(QRectF(x, r.bottom() - hh, barW, hh), QColor(0x2a, 0x82, 0xda, 200));
+        // 留出顶部数值、底部日期刻度的空间
+        const QRectF plot(full.left() + 4.0, full.top() + 11.0,
+                          full.width() - 8.0, full.height() - 11.0 - 13.0);
+        if (plot.height() <= 4.0)
+            return;
+
+        // 顶部：量级参考
+        p.setPen(secondaryColor());
+        p.drawText(QRectF(full.left(), full.top(), full.width(), 10.0),
+                   Qt::AlignLeft | Qt::AlignVCenter, formatShort(maxTotal));
+
+        // 基线
+        p.setPen(QPen(QColor(0, 0, 0, 36), 1.0));
+        p.drawLine(QPointF(plot.left(), plot.bottom()), QPointF(plot.right(), plot.bottom()));
+
+        const double slotW = plot.width() / m_days;
+        const double barW = qMax(2.0, slotW * 0.68);
+        for (int day = 1; day <= m_days; ++day) {
+            const qint64 total = byDay.value(day, 0);
+            if (total <= 0)
+                continue;
+            const double h = qMax(1.0, double(total) / double(maxTotal) * plot.height());
+            const double x = plot.left() + (day - 1) * slotW + (slotW - barW) / 2.0;
+            const bool isToday = (day == m_today);
+            p.fillRect(QRectF(x, plot.bottom() - h, barW, h),
+                       isToday ? QColor(0x2a, 0x82, 0xda) : QColor(0x2a, 0x82, 0xda, 165));
+        }
+
+        // 底部日期刻度：1 / 5 / 10 / 15 / 20 / 25 / 月末
+        p.setPen(secondaryColor());
+        QVector<int> ticks{1, 5, 10, 15, 20, 25};
+        if (m_days > 25)
+            ticks.append(m_days);
+        for (int day : ticks) {
+            if (day < 1 || day > m_days)
+                continue;
+            const double x = plot.left() + (day - 0.5) * slotW;
+            p.drawText(QRectF(x - 8.0, plot.bottom() + 2.0, 16.0, 10.0), Qt::AlignCenter,
+                       QString::number(day));
         }
     }
 
 private:
     QVector<QPair<int, qint64>> m_data;
+    QMap<int, qint64> m_byDay;
     int m_days = 0;
+    int m_today = -1;
 };
 
 // 一天 24 小时的用时图：纵轴是分钟（满格 60 分），默认堆叠柱（蓝=操作 橙=查看 灰=锁屏）。
@@ -564,8 +617,11 @@ UsagePopupWidget::UsagePopupWidget(UsageStorage *storage, QWidget *parent)
     QVBoxLayout *monthPageLayout = new QVBoxLayout(monthPage);
     monthPageLayout->setContentsMargins(0, 0, 0, 0);
     monthPageLayout->setSpacing(8);
-    MonthlyChartWidget *chart = new MonthlyChartWidget;
-    monthPageLayout->addWidget(chart);
+    QLabel *monthCaption = new QLabel(QStringLiteral("每日用时"));
+    monthCaption->setStyleSheet(QStringLiteral("color:%1; font-size:11px;").arg(secondaryText()));
+    monthPageLayout->addWidget(monthCaption);
+    m_monthChart = new MonthlyChartWidget;
+    monthPageLayout->addWidget(m_monthChart);
     QWidget *monthList = new QWidget;
     m_monthLayout = new QVBoxLayout(monthList);
     m_monthLayout->setContentsMargins(0, 0, 0, 0);
@@ -595,10 +651,13 @@ void UsagePopupWidget::showEvent(QShowEvent *e)
 
 void UsagePopupWidget::reload()
 {
-    if (m_mode == Mode::Day)
+    if (m_mode == Mode::Day) {
         rebuildDayView();
-    else
+    } else {
         rebuildMonthView();
+    }
+    if (m_stack)
+        m_stack->setCurrentIndex(m_mode == Mode::Day ? 0 : 1);
     updateTitle();
     updateNavState();
 }
@@ -611,9 +670,24 @@ QSize UsagePopupWidget::sizeHint() const
 
 void UsagePopupWidget::toggleMode()
 {
-    m_mode = (m_mode == Mode::Day) ? Mode::Month : Mode::Day;
-    if (m_mode == Mode::Month)
+    if (m_mode == Mode::Day) {
+        // 进月视图前记住当前这一天，切回来时回到原来的日子
+        m_dayBeforeMonth = m_date;
+        m_mode = Mode::Month;
         m_date = QDate(m_date.year(), m_date.month(), 1);
+    } else {
+        m_mode = Mode::Day;
+        const QDate today = QDate::currentDate();
+        if (m_dayBeforeMonth.isValid() && m_dayBeforeMonth.year() == m_date.year()
+            && m_dayBeforeMonth.month() == m_date.month()) {
+            // 同一个月：回到进月视图前看的那一天
+            m_date = m_dayBeforeMonth;
+        } else if (m_date.year() == today.year() && m_date.month() == today.month()) {
+            // 看的就是本月：直接回到今天
+            m_date = today;
+        }
+        // 看的是别的月份：就停在该月 1 号
+    }
     m_modeBtn->setText(m_mode == Mode::Day ? QStringLiteral("月视图") : QStringLiteral("日视图"));
     reload();
 }
@@ -639,10 +713,12 @@ void UsagePopupWidget::next()
 void UsagePopupWidget::goToday()
 {
     const QDate today = QDate::currentDate();
-    if (m_mode == Mode::Day)
+    if (m_mode == Mode::Day) {
         m_date = today;
-    else
+    } else {
         m_date = QDate(today.year(), today.month(), 1);
+        m_dayBeforeMonth = today; // 回日视图时直接停在今天
+    }
     reload();
 }
 
@@ -747,18 +823,19 @@ void UsagePopupWidget::rebuildMonthView()
     m_lockLabel->setText(QStringLiteral("锁屏时间 %1")
                              .arg(formatShort(m_storage->queryLockMonth(ym))));
 
-    QWidget *monthPage = m_stack->widget(1);
-    if (MonthlyChartWidget *chart = monthPage->findChild<MonthlyChartWidget *>())
-        chart->setData(m_storage->queryMonthDailyTotals(ym), m_date.daysInMonth());
+    const QDate today = QDate::currentDate();
+    const int todayDay = (today.year() == m_date.year() && today.month() == m_date.month())
+                             ? today.day()
+                             : -1;
+    if (m_monthChart)
+        m_monthChart->setData(m_storage->queryMonthDailyTotals(ym), m_date.daysInMonth(), todayDay);
 
     if (rows.isEmpty()) {
-        QLabel *empty = new QLabel(QStringLiteral("这个月没有使用记录"));
-        empty->setAlignment(Qt::AlignCenter);
-        empty->setStyleSheet(QStringLiteral("color:%1; padding:40px 0;").arg(secondaryText()));
-        m_monthLayout->addWidget(empty);
-    } else {
-        for (const auto &r : rows)
-            m_monthLayout->addWidget(new AppRowWidget(r));
+        // 图表区已经写了「本月暂无记录」，这里不再重复一句
+        m_monthLayout->addStretch();
+        return;
     }
+    for (const auto &r : rows)
+        m_monthLayout->addWidget(new AppRowWidget(r));
     m_monthLayout->addStretch();
 }
