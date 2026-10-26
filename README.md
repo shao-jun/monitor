@@ -135,6 +135,30 @@ kill "$(pgrep -x dde-dock)"   # 由 startdde 自动拉起
 
 装好后托盘会出现一个三根柱子的图标，点击即弹窗。
 
+## 打包成 deb（发给别人试用）
+
+```bash
+./packaging/build-deb.sh           # 默认版本 1.0.0，产物在 dist/
+./packaging/build-deb.sh 1.1.0     # 指定版本号
+```
+
+对方收到后：
+
+```bash
+sudo dpkg -i app-usage-monitor_1.0.0_amd64.deb
+# 装完重启一次任务栏，图标才会出现
+kill $(pgrep -x dde-dock)
+```
+
+卸载：
+
+```bash
+sudo dpkg -r app-usage-monitor
+```
+
+包只包含插件本体和文档，不会自动重启任务栏（避免打断用户），也不会删你的历史数据。
+仅提供构建机对应的架构（本项目在 amd64 上构建，arm64 需自行重打）。
+
 ## 卸载
 
 ```bash
