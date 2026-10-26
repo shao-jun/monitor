@@ -4,6 +4,15 @@
 
 ![界面截图](docs/screenshot.png)
 
+## 下载
+
+现成的安装包（amd64）：[app-usage-monitor_1.0.0_amd64.deb](releases/app-usage-monitor_1.0.0_amd64.deb)
+
+```bash
+sudo dpkg -i app-usage-monitor_1.0.0_amd64.deb
+kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
+```
+
 ## 特性
 
 - **自动统计，无需手动操作**：任务栏后台每 3 秒采样一次当前焦点窗口，按应用累计使用时长，每 10 秒落盘一次。
