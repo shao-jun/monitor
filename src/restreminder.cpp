@@ -6,7 +6,7 @@ constexpr qint64 RestReminder::kLockBreakMs;
 
 bool RestReminder::addWork(qint64 ms)
 {
-    if (ms <= 0)
+    if (ms <= 0 || m_workIntervalMs <= 0)
         return false;
 
     m_workMs += ms;

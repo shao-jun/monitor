@@ -34,7 +34,12 @@ public:
     // 连续工作到点，该提醒休息了（参数：刚告一段落的连续工作时长，毫秒）
     qint64 continuousWorkMs() const { return m_rest.continuousMs(); }
     qint64 restWorkIntervalMs() const { return m_rest.workIntervalMs(); }
-    void setRestWorkIntervalMs(qint64 ms) { m_rest.setWorkIntervalMs(ms); }
+    // 传 0 表示关闭休息提醒；改动后连续计时清零重算
+    void setRestWorkIntervalMs(qint64 ms)
+    {
+        m_rest.setWorkIntervalMs(ms);
+        m_rest.reset();
+    }
 
 signals:
     void restReminder(qint64 workedMs);

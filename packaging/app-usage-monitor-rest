@@ -1,0 +1,49 @@
+#!/bin/sh
+# 设置「连续工作多久提醒休息」的间隔。
+# 用法：app-usage-monitor-rest [分钟数 | off | status]
+#   分钟数  5-240，例如 app-usage-monitor-rest 45
+#   off     关闭休息提醒
+#   status  查看当前设置（不给参数时同 status）
+# 改完 5 秒内生效，不需要重启任务栏。
+
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}/app-usage-monitor/settings.ini"
+mkdir -p "$(dirname "$CFG")" 2>/dev/null
+
+cur=$(sed -n 's/^[[:space:]]*intervalMinutes[[:space:]]*=[[:space:]]*//p' "$CFG" 2>/dev/null | tail -1)
+[ -z "$cur" ] && cur=30
+
+show() {
+    if [ "$1" = "0" ]; then
+        echo "休息提醒：已关闭"
+    else
+        echo "休息提醒：连续工作 $1 分钟提醒"
+    fi
+}
+
+case "$1" in
+    ""|status)
+        show "$cur"
+        exit 0
+        ;;
+    off|OFF|关闭|关)
+        printf '[rest]\nintervalMinutes=0\n' > "$CFG"
+        echo "休息提醒已关闭（5 秒内生效）"
+        exit 0
+        ;;
+esac
+
+case "$1" in
+    *[!0-9]*)
+        echo "用法: $(basename "$0") [分钟数|off|status]" >&2
+        echo "  例如: $(basename "$0") 45    $(basename "$0") off    $(basename "$0") status" >&2
+        exit 2
+        ;;
+esac
+
+if [ "$1" -lt 5 ] || [ "$1" -gt 240 ]; then
+    echo "分钟数请给 5-240 之间的整数（要关闭请用 off）" >&2
+    exit 2
+fi
+
+printf '[rest]\nintervalMinutes=%s\n' "$1" > "$CFG"
+echo "休息提醒已改为连续工作 $1 分钟（5 秒内生效）"

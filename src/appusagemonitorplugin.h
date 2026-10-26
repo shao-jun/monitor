@@ -9,6 +9,7 @@ class UsageTracker;
 class UsagePopupWidget;
 class UsageStorage;
 class QLabel;
+class QTimer;
 class RestNotifier;
 
 class AppUsageMonitorPlugin : public QObject, public PluginsItemInterfaceV2
@@ -27,6 +28,11 @@ public:
     QWidget *itemWidget(const QString &itemKey) override;
     QWidget *itemTipsWidget(const QString &itemKey) override;
     QWidget *itemPopupApplet(const QString &itemKey) override;
+    const QString itemContextMenu(const QString &itemKey) override;
+    void invokedMenuItem(const QString &itemKey, const QString &menuId, const bool checked) override;
+
+    // 供测试使用：当前生效的休息提醒间隔（毫秒，0=关闭）
+    qint64 currentRestIntervalMs() const;
 
     Dock::PluginFlags flags() const override;
     QIcon icon(Dock::IconType, Dock::ThemeType) const override;
@@ -37,6 +43,13 @@ private slots:
 
 private:
     QString notificationIconPath();
+    void applyRestInterval(int minutes, bool persist);
+    int restIntervalMinutes() const;
+    void reloadRestIntervalIfChanged();
+    qint64 settingsMtime() const;
+
+    QTimer *m_settingsTimer = nullptr;
+    qint64 m_lastSettingsMtime = -1;
 
     QString m_itemKey;
     QLabel *m_itemLabel = nullptr;

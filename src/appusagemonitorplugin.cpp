@@ -6,6 +6,12 @@
 #include "restnotifier.h"
 
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFileInfo>
+#include <QSettings>
+#include <QTimer>
 #include <QStandardPaths>
 #include <QLabel>
 #include <QPainter>
@@ -42,6 +48,16 @@ AppUsageMonitorPlugin::AppUsageMonitorPlugin(QObject *parent)
 
     const QString dbPath = QDir::home().filePath(QStringLiteral(".local/share/app-usage-monitor/usage.db"));
     m_storage->open(dbPath);
+
+    // 恢复上次设置的休息提醒间隔
+    m_tracker->setRestWorkIntervalMs(qint64(restIntervalMinutes()) * 60 * 1000);
+    m_lastSettingsMtime = settingsMtime();
+
+    // 配置文件被改了就即时生效，不需要重启任务栏
+    m_settingsTimer = new QTimer(this);
+    m_settingsTimer->setInterval(5000);
+    connect(m_settingsTimer, &QTimer::timeout, this, &AppUsageMonitorPlugin::reloadRestIntervalIfChanged);
+    m_settingsTimer->start();
 }
 
 AppUsageMonitorPlugin::~AppUsageMonitorPlugin()
@@ -142,4 +158,102 @@ Dock::PluginFlags AppUsageMonitorPlugin::flags() const
 QIcon AppUsageMonitorPlugin::icon(Dock::IconType, Dock::ThemeType) const
 {
     return QIcon(drawDockPixmap(16));
+}
+
+int AppUsageMonitorPlugin::restIntervalMinutes() const
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                       QStringLiteral("app-usage-monitor"), QStringLiteral("settings"));
+    // 0 表示关闭提醒，默认 30 分钟
+    return settings.value(QStringLiteral("rest/intervalMinutes"), 30).toInt();
+}
+
+void AppUsageMonitorPlugin::applyRestInterval(int minutes, bool persist)
+{
+    if (persist) {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("app-usage-monitor"), QStringLiteral("settings"));
+        settings.setValue(QStringLiteral("rest/intervalMinutes"), minutes);
+        settings.sync();
+    }
+    m_tracker->setRestWorkIntervalMs(qint64(minutes) * 60 * 1000);
+    if (persist)
+        m_lastSettingsMtime = settingsMtime();
+    onContinuousWorkChanged(m_tracker->continuousWorkMs());
+}
+
+qint64 AppUsageMonitorPlugin::currentRestIntervalMs() const
+{
+    return m_tracker->restWorkIntervalMs();
+}
+
+qint64 AppUsageMonitorPlugin::settingsMtime() const
+{
+    const QFileInfo info(QSettings(QSettings::IniFormat, QSettings::UserScope,
+                                   QStringLiteral("app-usage-monitor"),
+                                   QStringLiteral("settings")).fileName());
+    return info.exists() ? info.lastModified().toMSecsSinceEpoch() : 0;
+}
+
+void AppUsageMonitorPlugin::reloadRestIntervalIfChanged()
+{
+    const qint64 mtime = settingsMtime();
+    if (mtime == m_lastSettingsMtime)
+        return;
+
+    m_lastSettingsMtime = mtime;
+    const int minutes = restIntervalMinutes();
+    m_tracker->setRestWorkIntervalMs(qint64(minutes) * 60 * 1000);
+    qInfo("app-usage-monitor: 休息提醒间隔已更新为 %d 分钟（0=关闭）", minutes);
+    onContinuousWorkChanged(m_tracker->continuousWorkMs());
+}
+
+const QString AppUsageMonitorPlugin::itemContextMenu(const QString &itemKey)
+{
+    Q_UNUSED(itemKey);
+
+    const int current = restIntervalMinutes();
+    QJsonArray items;
+
+    const QVector<int> choices{20, 30, 45, 60};
+    for (int minutes : choices) {
+        QJsonObject item;
+        item[QStringLiteral("itemId")] = QStringLiteral("rest-%1").arg(minutes);
+        item[QStringLiteral("itemText")] = QStringLiteral("连续工作 %1 分钟提醒").arg(minutes);
+        item[QStringLiteral("isActive")] = true;
+        item[QStringLiteral("isCheckable")] = true;
+        item[QStringLiteral("checked")] = (current == minutes);
+        items.append(item);
+    }
+
+    QJsonObject off;
+    off[QStringLiteral("itemId")] = QStringLiteral("rest-off");
+    off[QStringLiteral("itemText")] = QStringLiteral("关闭休息提醒");
+    off[QStringLiteral("isActive")] = true;
+    off[QStringLiteral("isCheckable")] = true;
+    off[QStringLiteral("checked")] = (current <= 0);
+    items.append(off);
+
+    QJsonObject menu;
+    menu[QStringLiteral("items")] = items;
+    menu[QStringLiteral("checkableMenu")] = false;
+    menu[QStringLiteral("singleCheck")] = false;
+    return QString::fromUtf8(QJsonDocument(menu).toJson(QJsonDocument::Compact));
+}
+
+void AppUsageMonitorPlugin::invokedMenuItem(const QString &itemKey, const QString &menuId, const bool checked)
+{
+    Q_UNUSED(itemKey);
+    Q_UNUSED(checked);
+
+    if (menuId == QLatin1String("rest-off")) {
+        applyRestInterval(0, true);
+        return;
+    }
+    if (menuId.startsWith(QLatin1String("rest-"))) {
+        bool ok = false;
+        const int minutes = menuId.mid(5).toInt(&ok);
+        if (ok && minutes > 0)
+            applyRestInterval(minutes, true);
+    }
 }

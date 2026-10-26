@@ -29,9 +29,15 @@ public:
     // 锁屏结束（只清锁屏累计，连续工作时间按阈值是否已达决定保留或已清零）。
     void endLock();
 
-    // 默认 30 分钟；提供 setter 便于联调和日后做成可配置
-    void setWorkIntervalMs(qint64 ms) { m_workIntervalMs = ms > 0 ? ms : kWorkIntervalMs; }
+    // 默认 30 分钟；传给 0 或负数表示关闭提醒
+    void setWorkIntervalMs(qint64 ms)
+    {
+        m_workIntervalMs = ms;
+        if (ms <= 0)
+            m_workMs = 0;
+    }
     qint64 workIntervalMs() const { return m_workIntervalMs; }
+    bool enabled() const { return m_workIntervalMs > 0; }
 
     qint64 continuousMs() const { return m_workMs; }
     qint64 lockMs() const { return m_lockMs; }

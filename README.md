@@ -6,10 +6,10 @@
 
 ## 下载
 
-现成的安装包（amd64）：[app-usage-monitor_1.0.0_amd64.deb](releases/app-usage-monitor_1.0.0_amd64.deb)
+现成的安装包（amd64）：[app-usage-monitor_1.1.0_amd64.deb](releases/app-usage-monitor_1.1.0_amd64.deb)
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.0.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.1.0_amd64.deb
 kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 ```
 
@@ -51,9 +51,33 @@ kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 ## 休息提醒
 
 - **算作工作**：操作 + 查看，两者累加（只要前台有应用、不是锁屏，时间就在累计）。
-- **满 30 分钟**：弹一条桌面气泡「该休息一下了 / 已连续工作 30 分钟…」，并通过系统通知中心留档；点掉后从 0 重新计时，继续工作会再提醒一次。
+- **满 N 分钟**（默认 30，可改）：弹一条桌面气泡「该休息一下了 / 已连续工作 30 分钟…」，并通过系统通知中心留档；点掉后从 0 重新计时，继续工作会再提醒一次。
 - **锁屏满 3 分钟**：视为一次真正的中断，连续工作时长清零；不足 3 分钟（临时锁屏再解开）不打断连续计时，锁屏时长本身也不计入工作。
 - **看当前状态**：鼠标悬停任务栏图标，提示会显示「已连续工作 N 分钟」。
+
+### 改提醒间隔
+
+两种方式，改完 **5 秒内生效，不用重启任务栏**：
+
+1. **右键任务栏图标** → 勾选「连续工作 20 / 30 / 45 / 60 分钟提醒」，或「关闭休息提醒」。
+2. **命令行**（装了 deb 就有）：
+
+```bash
+app-usage-monitor-rest 45      # 改成 45 分钟（5-240）
+app-usage-monitor-rest off     # 关闭提醒
+app-usage-monitor-rest         # 查看当前设置
+```
+
+设置存在 `~/.config/app-usage-monitor/settings.ini`：
+
+```ini
+[rest]
+intervalMinutes=45    # 0 = 关闭
+```
+
+改间隔会从 0 重新计时，不会沿用旧的累计。
+
+> 右键菜单需要 dde-dock 支持插件自定义菜单项（本机 5.10.x 可用）。如果你的任务栏右键没有这些项，用命令行的方式一样生效。
 
 > 「查看」等于窗口有焦点但没输入，所以挂着窗口离开座位也会累计。要让自己准时休息，离开时请锁屏——锁屏 3 分钟后回来，计时就重新开始了。
 
@@ -154,7 +178,7 @@ kill "$(pgrep -x dde-dock)"   # 由 startdde 自动拉起
 对方收到后：
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.0.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.1.0_amd64.deb
 # 装完重启一次任务栏，图标才会出现
 kill $(pgrep -x dde-dock)
 ```
@@ -192,6 +216,9 @@ rm -rf ~/.local/share/app-usage-monitor   # 连同历史数据一起删除（可
 │   ├── restreminder.*            # 连续工作计时与 30 分钟提醒判定（纯计算，可单测）
 │   ├── restnotifier.*            # 走 org.freedesktop.Notifications 发气泡
 │   └── usageentry.h              # 数据结构
+├── packaging/
+│   ├── build-deb.sh                    # 打 deb
+│   └── app-usage-monitor-rest          # 改提醒间隔的命令行工具
 ├── docs/screenshot.png
 ├── CMakeLists.txt
 └── install.sh

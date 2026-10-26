@@ -22,6 +22,7 @@ cmake --build "$BUILD_DIR" -j"$(nproc)" >/dev/null
 echo "==> 组装文件树"
 rm -rf "$STAGE"
 install -D -m 755 "$SO" "$STAGE/usr/lib/dde-dock/plugins/libapp-usage-monitor.so"
+install -D -m 755 "$HERE/packaging/app-usage-monitor-rest" "$STAGE/usr/bin/app-usage-monitor-rest"
 install -D -m 644 "$HERE/README.md" "$STAGE/usr/share/doc/$PKG/README.md"
 install -D -m 644 "$HERE/LICENSE" "$STAGE/usr/share/doc/$PKG/copyright"
 mkdir -p "$STAGE/usr/share/doc/$PKG"
