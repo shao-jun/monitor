@@ -13,6 +13,13 @@
 #include <QShowEvent>
 #include <QSizePolicy>
 #include <QStackedWidget>
+#ifndef APP_USAGE_VERSION
+#define APP_USAGE_VERSION "1.1.1"   // 由 CMake 定义，单独编译源码时的兜底
+#endif
+
+#include <QDesktopServices>
+#include <QMessageBox>
+#include <QUrl>
 #include <QVBoxLayout>
 
 namespace {
@@ -525,6 +532,18 @@ UsagePopupWidget::UsagePopupWidget(UsageStorage *storage, QWidget *parent)
     header->addWidget(m_title);
     header->addStretch();
     header->addWidget(m_modeBtn);
+
+    // 关于：一个小到几乎不占地方的 ⓘ，点开才显示作者和仓库
+    m_aboutBtn = new QPushButton(QStringLiteral("\u24d8"));
+    m_aboutBtn->setFixedSize(14, 14);
+    m_aboutBtn->setFlat(true);
+    m_aboutBtn->setCursor(Qt::PointingHandCursor);
+    m_aboutBtn->setToolTip(QStringLiteral("关于"));
+    m_aboutBtn->setFocusPolicy(Qt::NoFocus);
+    m_aboutBtn->setStyleSheet(QStringLiteral("QPushButton{border:none;padding:0;margin:0;color:%1;font-size:12px;}")
+                                  .arg(secondaryText()));
+    connect(m_aboutBtn, &QPushButton::clicked, this, &UsagePopupWidget::showAbout);
+    header->addWidget(m_aboutBtn, 0, Qt::AlignVCenter);
     root->addLayout(header);
 
     QHBoxLayout *nav = new QHBoxLayout;
@@ -838,4 +857,23 @@ void UsagePopupWidget::rebuildMonthView()
     for (const auto &r : rows)
         m_monthLayout->addWidget(new AppRowWidget(r));
     m_monthLayout->addStretch();
+}
+
+void UsagePopupWidget::showAbout()
+{
+    QMessageBox box(this);
+    box.setWindowTitle(QStringLiteral("关于"));
+    box.setIcon(QMessageBox::NoIcon);
+    box.setTextFormat(Qt::RichText);
+    box.setText(QStringLiteral("<b>应用使用时间</b> " APP_USAGE_VERSION "<br><br>"
+                               "作者：shao-jun<br>"
+                               "GitHub：<a href=\"https://github.com/shao-jun/monitor\">"
+                               "github.com/shao-jun/monitor</a>"));
+    box.setStandardButtons(QMessageBox::Ok);
+    box.button(QMessageBox::Ok)->setText(QStringLiteral("关闭"));
+    for (QLabel *label : box.findChildren<QLabel *>()) {
+        label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+        label->setOpenExternalLinks(true);
+    }
+    box.exec();
 }

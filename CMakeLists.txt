@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
-project(app-usage-monitor LANGUAGES CXX)
+project(app-usage-monitor VERSION 1.1.1 LANGUAGES CXX)
+
+# 版本号只在 CMake 里维护，C++ 侧用 APP_USAGE_VERSION 引用
+add_definitions(-DAPP_USAGE_VERSION="${PROJECT_VERSION}")
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

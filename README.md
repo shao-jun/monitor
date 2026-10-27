@@ -6,10 +6,10 @@
 
 ## 下载
 
-现成的安装包（amd64）：[app-usage-monitor_1.1.0_amd64.deb](releases/app-usage-monitor_1.1.0_amd64.deb)
+现成的安装包（amd64）：[app-usage-monitor_1.1.1_amd64.deb](releases/app-usage-monitor_1.1.1_amd64.deb)
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.1.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.1.1_amd64.deb
 kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 ```
 
@@ -54,6 +54,7 @@ kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 - **满 N 分钟**（默认 30，可改）：弹一条桌面气泡「该休息一下了 / 已连续工作 30 分钟…」，并通过系统通知中心留档；点掉后从 0 重新计时，继续工作会再提醒一次。
 - **锁屏满 3 分钟**：视为一次真正的中断，连续工作时长清零；不足 3 分钟（临时锁屏再解开）不打断连续计时，锁屏时长本身也不计入工作。
 - **看当前状态**：鼠标悬停任务栏图标，提示会显示「已连续工作 N 分钟」。
+- **关于**：弹窗标题行最右侧一个 14×14 的 ⓘ，点开显示版本、作者 shao-jun 和仓库地址。
 
 ### 改提醒间隔
 
@@ -178,7 +179,7 @@ kill "$(pgrep -x dde-dock)"   # 由 startdde 自动拉起
 对方收到后：
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.1.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.1.1_amd64.deb
 # 装完重启一次任务栏，图标才会出现
 kill $(pgrep -x dde-dock)
 ```
@@ -211,7 +212,7 @@ rm -rf ~/.local/share/app-usage-monitor   # 连同历史数据一起删除（可
 │   ├── idledetector.*            # 调用 xprintidle 读空闲时长
 │   ├── appregistry.*             # .desktop 解析：本地化名称与图标
 │   ├── usagestorage.*            # SQLite 读写
-│   ├── usagepopupwidget.*        # 弹窗 UI + 自绘小时图表控件
+│   ├── usagepopupwidget.*        # 弹窗 UI + 自绘小时图表控件 + 关于对话框
 │   ├── usagechart.*              # 小时分钟数 / 占比 / 时段文字等纯计算
 │   ├── restreminder.*            # 连续工作计时与 30 分钟提醒判定（纯计算，可单测）
 │   ├── restnotifier.*            # 走 org.freedesktop.Notifications 发气泡

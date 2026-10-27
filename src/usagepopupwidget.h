@@ -42,6 +42,7 @@ private:
     void rebuildDayView();
     void rebuildMonthView();
     void setChartMode(int mode);
+    void showAbout();
 
     UsageStorage *m_storage;
     QDate m_date;
@@ -55,6 +56,7 @@ private:
     QPushButton *m_nextBtn = nullptr;
     QPushButton *m_todayBtn = nullptr;
     QPushButton *m_modeBtn = nullptr;
+    QPushButton *m_aboutBtn = nullptr;
     QStackedWidget *m_stack = nullptr;
     HourlyChartWidget *m_hourChart = nullptr;
     MonthlyChartWidget *m_monthChart = nullptr;
