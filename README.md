@@ -6,10 +6,10 @@
 
 ## 下载
 
-现成的安装包（amd64）：[app-usage-monitor_1.1.1_amd64.deb](releases/app-usage-monitor_1.1.1_amd64.deb)
+现成的安装包（amd64）：[app-usage-monitor_1.2.0_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.1.1_amd64.deb
+sudo dpkg -i app-usage-monitor_1.2.0_amd64.deb
 kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 ```
 
@@ -81,6 +81,24 @@ intervalMinutes=45    # 0 = 关闭
 > 右键菜单需要 dde-dock 支持插件自定义菜单项（本机 5.10.x 可用）。如果你的任务栏右键没有这些项，用命令行的方式一样生效。
 
 > 「查看」等于窗口有焦点但没输入，所以挂着窗口离开座位也会累计。要让自己准时休息，离开时请锁屏——锁屏 3 分钟后回来，计时就重新开始了。
+
+## 上下文切换
+
+任务切换才是效率杀手，所以单独记一份「切换账」：
+
+- **怎么算一次切换**：每秒看一眼前台窗口，换了应用或换了窗口就算一次；上一个窗口停留不到 10 秒的算「碎片切换」。
+- **企业微信里换会话**：客户端窗口标题永远是「企业微信」，所以用截图 + OCR 认聊天标题（私聊是真名，群聊是群名）。需要装 `tesseract-ocr` 和 `tesseract-ocr-chi-sim`，没装就只记窗口级切换；不想用可以在 `settings.ini` 里写 `[switch] ocr=0`。
+- **手动事件**：点「＋ 添加事件」，记下「出去开会」「被人叫走」「接电话」「休息」这类外部中断，可以按 时:分 和时长填，也能删除。
+
+弹窗标题行点「切换」看当天统计：
+
+| 区域 | 内容 |
+| --- | --- |
+| 摘要 | 共 N 次切换 · 平均几分钟一次 · 高峰几点几次 · 碎片切换次数 |
+| 柱状图 | 每小时切换次数，峰值那根颜色更深 |
+| 高频跳转 | 最常出现的应用/窗口跳转 Top 5（A → B） |
+| 企业微信会话 | 切换最多的会话 Top 5 |
+| 今日事件 | 事件时间段与名称，可删；下面就是「＋ 添加事件」 |
 
 ## 采集口径
 
@@ -179,7 +197,7 @@ kill "$(pgrep -x dde-dock)"   # 由 startdde 自动拉起
 对方收到后：
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.1.1_amd64.deb
+sudo dpkg -i app-usage-monitor_1.2.0_amd64.deb
 # 装完重启一次任务栏，图标才会出现
 kill $(pgrep -x dde-dock)
 ```
@@ -216,6 +234,10 @@ rm -rf ~/.local/share/app-usage-monitor   # 连同历史数据一起删除（可
 │   ├── usagechart.*              # 小时分钟数 / 占比 / 时段文字等纯计算
 │   ├── restreminder.*            # 连续工作计时与 30 分钟提醒判定（纯计算，可单测）
 │   ├── restnotifier.*            # 走 org.freedesktop.Notifications 发气泡
+│   ├── contextswitch.*           # 每秒采样前台窗口，记录上下文切换
+│   ├── chattitleocr.*            # 截图 + tesseract 识别企业微信会话名
+│   ├── switchstats.*             # 切换统计（次数/间隔/高峰/高频跳转，纯计算可单测）
+│   ├── addeventdialog.*          # 添加事件对话框
 │   └── usageentry.h              # 数据结构
 ├── packaging/
 │   ├── build-deb.sh                    # 打 deb

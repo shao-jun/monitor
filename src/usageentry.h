@@ -54,4 +54,23 @@ struct HourlyUsageRow {
     qint64 totalMs() const { return activeMs + viewingMs + lockMs; }
 };
 
+// 一次上下文切换（窗口切换或企业微信会话切换）
+struct SwitchRow {
+    qint64 ts = 0;          // 发生时间（秒）
+    QString kind;           // "window" 换窗口 / "chat" 同一应用内换会话
+    QString fromApp;
+    QString toApp;
+    QString fromCtx;        // 上一个上下文（窗口标题或会话名）
+    QString toCtx;
+    int dwellSec = 0;       // 上一个上下文停留了多久
+};
+
+// 手动添加的事件（出去开会、别人叫走等）
+struct DayEvent {
+    int id = 0;
+    qint64 startTs = 0;
+    qint64 endTs = 0;
+    QString label;
+};
+
 #endif // USAGEENTRY_H

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(app-usage-monitor VERSION 1.1.1 LANGUAGES CXX)
+project(app-usage-monitor VERSION 1.2.0 LANGUAGES CXX)
 
 # 版本号只在 CMake 里维护，C++ 侧用 APP_USAGE_VERSION 引用
 add_definitions(-DAPP_USAGE_VERSION="${PROJECT_VERSION}")
@@ -34,6 +34,14 @@ add_library(app-usage-monitor MODULE
     src/usagepopupwidget.h
     src/usagechart.cpp
     src/usagechart.h
+    src/contextswitch.cpp
+    src/contextswitch.h
+    src/chattitleocr.cpp
+    src/chattitleocr.h
+    src/switchstats.cpp
+    src/switchstats.h
+    src/addeventdialog.cpp
+    src/addeventdialog.h
     src/restreminder.cpp
     src/restreminder.h
     src/restnotifier.cpp

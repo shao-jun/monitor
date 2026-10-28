@@ -7,6 +7,8 @@
 class UsageStorage;
 class HourlyChartWidget;
 class MonthlyChartWidget;
+class SwitchChartWidget;
+class MonthlyChartWidget;
 class QLabel;
 class QPushButton;
 class QStackedWidget;
@@ -17,6 +19,8 @@ class UsagePopupWidget : public QWidget
     Q_OBJECT
 public:
     explicit UsagePopupWidget(UsageStorage *storage, QWidget *parent = nullptr);
+
+    bool isShowingSwitches() const { return m_mode == Mode::Switch; }
 
 public slots:
     void reload();
@@ -31,16 +35,20 @@ protected:
     void showEvent(QShowEvent *e) override;
 
 private:
-    enum class Mode { Day, Month };
+    enum class Mode { Day, Month, Switch };
 
     void prev();
     void next();
     void goToday();
     void toggleMode();
+    void toggleSwitchView();
+    void updateHeaderButtons();
     void updateTitle();
     void updateNavState();
     void rebuildDayView();
     void rebuildMonthView();
+    void rebuildSwitchView();
+    void addEvent();
     void setChartMode(int mode);
     void showAbout();
 
@@ -56,6 +64,7 @@ private:
     QPushButton *m_nextBtn = nullptr;
     QPushButton *m_todayBtn = nullptr;
     QPushButton *m_modeBtn = nullptr;
+    QPushButton *m_switchBtn = nullptr;
     QPushButton *m_aboutBtn = nullptr;
     QStackedWidget *m_stack = nullptr;
     HourlyChartWidget *m_hourChart = nullptr;
@@ -65,6 +74,9 @@ private:
     QPushButton *m_lineBtn = nullptr;
     QVBoxLayout *m_dayLayout = nullptr;
     QVBoxLayout *m_monthLayout = nullptr;
+    QLabel *m_switchSummary = nullptr;
+    SwitchChartWidget *m_switchChart = nullptr;
+    QVBoxLayout *m_switchLayout = nullptr;
 };
 
 #endif // USAGEPOPUPWIDGET_H

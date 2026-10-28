@@ -47,6 +47,26 @@ bool UsageStorage::open(const QString &dbPath)
         "viewing_ms INTEGER NOT NULL DEFAULT 0,"
         "lock_ms INTEGER NOT NULL DEFAULT 0,"
         "PRIMARY KEY (date, hour))"));
+    q.exec(QStringLiteral(
+        "CREATE TABLE IF NOT EXISTS switches ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "date TEXT NOT NULL,"
+        "ts INTEGER NOT NULL,"
+        "kind TEXT NOT NULL DEFAULT 'window',"
+        "from_app TEXT NOT NULL DEFAULT '',"
+        "to_app TEXT NOT NULL DEFAULT '',"
+        "from_ctx TEXT NOT NULL DEFAULT '',"
+        "to_ctx TEXT NOT NULL DEFAULT '',"
+        "dwell_sec INTEGER NOT NULL DEFAULT 0)"));
+    q.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS idx_switches_date ON switches(date, ts)"));
+    q.exec(QStringLiteral(
+        "CREATE TABLE IF NOT EXISTS events ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "date TEXT NOT NULL,"
+        "start_ts INTEGER NOT NULL,"
+        "end_ts INTEGER NOT NULL,"
+        "label TEXT NOT NULL DEFAULT '')"));
+    q.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS idx_events_date ON events(date, start_ts)"));
     return true;
 }
 
@@ -250,4 +270,94 @@ QVector<HourlyUsageRow> UsageStorage::queryHourlyRange(const QString &startDate,
         rows.append(r);
     }
     return rows;
+}
+
+void UsageStorage::addSwitch(const QString &date, const SwitchRow &row)
+{
+    if (!isOpen())
+        return;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("INSERT INTO switches (date, ts, kind, from_app, to_app, from_ctx, to_ctx, dwell_sec) "
+                             "VALUES (:date, :ts, :kind, :from_app, :to_app, :from_ctx, :to_ctx, :dwell)"));
+    q.bindValue(QStringLiteral(":date"), date);
+    q.bindValue(QStringLiteral(":ts"), row.ts);
+    q.bindValue(QStringLiteral(":kind"), row.kind);
+    q.bindValue(QStringLiteral(":from_app"), row.fromApp);
+    q.bindValue(QStringLiteral(":to_app"), row.toApp);
+    q.bindValue(QStringLiteral(":from_ctx"), row.fromCtx);
+    q.bindValue(QStringLiteral(":to_ctx"), row.toCtx);
+    q.bindValue(QStringLiteral(":dwell"), row.dwellSec);
+    q.exec();
+}
+
+QVector<SwitchRow> UsageStorage::switchesForDay(const QString &date) const
+{
+    QVector<SwitchRow> rows;
+    if (!isOpen())
+        return rows;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("SELECT ts, kind, from_app, to_app, from_ctx, to_ctx, dwell_sec FROM switches "
+                             "WHERE date = :date ORDER BY ts ASC"));
+    q.bindValue(QStringLiteral(":date"), date);
+    if (!q.exec())
+        return rows;
+    while (q.next()) {
+        SwitchRow r;
+        r.ts = q.value(0).toLongLong();
+        r.kind = q.value(1).toString();
+        r.fromApp = q.value(2).toString();
+        r.toApp = q.value(3).toString();
+        r.fromCtx = q.value(4).toString();
+        r.toCtx = q.value(5).toString();
+        r.dwellSec = q.value(6).toInt();
+        rows.append(r);
+    }
+    return rows;
+}
+
+int UsageStorage::addEvent(const QString &date, qint64 startTs, qint64 endTs, const QString &label)
+{
+    if (!isOpen())
+        return -1;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("INSERT INTO events (date, start_ts, end_ts, label) "
+                             "VALUES (:date, :start, :end, :label)"));
+    q.bindValue(QStringLiteral(":date"), date);
+    q.bindValue(QStringLiteral(":start"), startTs);
+    q.bindValue(QStringLiteral(":end"), endTs);
+    q.bindValue(QStringLiteral(":label"), label);
+    if (!q.exec())
+        return -1;
+    return q.lastInsertId().toInt();
+}
+
+QVector<DayEvent> UsageStorage::eventsForDay(const QString &date) const
+{
+    QVector<DayEvent> rows;
+    if (!isOpen())
+        return rows;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("SELECT id, start_ts, end_ts, label FROM events WHERE date = :date ORDER BY start_ts ASC"));
+    q.bindValue(QStringLiteral(":date"), date);
+    if (!q.exec())
+        return rows;
+    while (q.next()) {
+        DayEvent e;
+        e.id = q.value(0).toInt();
+        e.startTs = q.value(1).toLongLong();
+        e.endTs = q.value(2).toLongLong();
+        e.label = q.value(3).toString();
+        rows.append(e);
+    }
+    return rows;
+}
+
+void UsageStorage::removeEvent(int id)
+{
+    if (!isOpen())
+        return;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("DELETE FROM events WHERE id = :id"));
+    q.bindValue(QStringLiteral(":id"), id);
+    q.exec();
 }

@@ -1,8 +1,11 @@
 #include "usagepopupwidget.h"
 
+#include "addeventdialog.h"
+#include "switchstats.h"
 #include "usagechart.h"
 #include "usagestorage.h"
 
+#include <QDateTime>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -14,7 +17,7 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.1.1"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.2.0"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>
@@ -251,6 +254,76 @@ private:
 // 一天 24 小时的用时图：纵轴是分钟（满格 60 分），默认堆叠柱（蓝=操作 橙=查看 灰=锁屏）。
 // 没走完/没记录满的小时只画出实际用掉的分钟数，不会被归一化成 100%。
 // 可切「在岗」（去掉锁屏，只看操作/查看分钟）与「曲线」；下方附按主导状态着色的状态条。
+
+// 每小时切换次数的小柱状图
+class SwitchChartWidget : public QWidget
+{
+public:
+    explicit SwitchChartWidget(QWidget *parent = nullptr)
+        : QWidget(parent)
+        , m_counts(24, 0)
+    {
+        setFixedHeight(92);
+    }
+
+    void setCounts(const QVector<int> &counts)
+    {
+        m_counts = counts;
+        if (m_counts.size() != 24)
+            m_counts = QVector<int>(24, 0);
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, true);
+
+        const int left = 2;
+        const int right = width() - 2;
+        const int top = 12;
+        const int baseline = height() - 16;
+        p.setPen(QColor(0, 0, 0, 28));
+        p.drawLine(left, baseline, right, baseline);
+
+        int maxCount = 1;
+        for (int c : m_counts)
+            maxCount = qMax(maxCount, c);
+
+        const double w = double(right - left) / 24.0;
+        for (int h = 0; h < 24; ++h) {
+            const int c = m_counts.at(h);
+            if (c <= 0)
+                continue;
+            const double hgt = double(c) / maxCount * (baseline - top);
+            QRectF bar(left + h * w + 1.0, baseline - hgt, qMax(2.0, w - 2.0), hgt);
+            p.setPen(Qt::NoPen);
+            const bool peak = (c == maxCount);
+            p.setBrush(QColor(0x2a, 0x82, 0xda, peak ? 235 : 150));
+            p.drawRoundedRect(bar, 1.5, 1.5);
+        }
+
+        QFont small = font();
+        small.setPixelSize(9);
+        p.setFont(small);
+        p.setPen(QColor(0, 0, 0, 120));
+        for (int mark : {0, 6, 12, 18, 23}) {
+            const int x = int(left + mark * w);
+            p.drawText(QRectF(x - 10, baseline + 2, 20, 12), Qt::AlignCenter,
+                       QStringLiteral("%1").arg(mark, 2, 10, QChar('0')));
+        }
+
+        // 峰值标注
+        p.setPen(QColor(0, 0, 0, 140));
+        p.drawText(QRectF(left, 0, right - left, 12), Qt::AlignLeft,
+                   QStringLiteral("每小时切换次数 · 峰值 %1 次").arg(maxCount));
+    }
+
+private:
+    QVector<int> m_counts;
+};
+
 class HourlyChartWidget : public QWidget
 {
 public:
@@ -533,6 +606,14 @@ UsagePopupWidget::UsagePopupWidget(UsageStorage *storage, QWidget *parent)
     header->addStretch();
     header->addWidget(m_modeBtn);
 
+    m_switchBtn = new QPushButton(QStringLiteral("切换"));
+    m_switchBtn->setFlat(true);
+    m_switchBtn->setCursor(Qt::PointingHandCursor);
+    m_switchBtn->setStyleSheet(QStringLiteral("color:%1;").arg(primaryText()));
+    m_switchBtn->setToolTip(QStringLiteral("上下文切换与事件"));
+    connect(m_switchBtn, &QPushButton::clicked, this, &UsagePopupWidget::toggleSwitchView);
+    header->addWidget(m_switchBtn);
+
     // 关于：一个小到几乎不占地方的 ⓘ，点开才显示作者和仓库
     m_aboutBtn = new QPushButton(QStringLiteral("\u24d8"));
     m_aboutBtn->setFixedSize(14, 14);
@@ -656,7 +737,36 @@ UsagePopupWidget::UsagePopupWidget(UsageStorage *storage, QWidget *parent)
     monthPageLayout->addWidget(monthScroll, 1);
     m_stack->addWidget(monthPage);
 
+    QWidget *switchPage = new QWidget;
+    QVBoxLayout *switchPageLayout = new QVBoxLayout(switchPage);
+    switchPageLayout->setContentsMargins(0, 0, 0, 0);
+    switchPageLayout->setSpacing(8);
+
+    m_switchSummary = new QLabel;
+    m_switchSummary->setWordWrap(true);
+    m_switchSummary->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(secondaryText()));
+    switchPageLayout->addWidget(m_switchSummary);
+
+    m_switchChart = new SwitchChartWidget;
+    switchPageLayout->addWidget(m_switchChart);
+
+    QWidget *switchList = new QWidget;
+    m_switchLayout = new QVBoxLayout(switchList);
+    m_switchLayout->setContentsMargins(0, 0, 0, 0);
+    m_switchLayout->setSpacing(2);
+    QScrollArea *switchScroll = new QScrollArea;
+    switchScroll->setWidgetResizable(true);
+    switchScroll->setFrameShape(QFrame::NoFrame);
+    switchScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    switchScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    switchScroll->setStyleSheet(QStringLiteral("QScrollArea{background:transparent;} QScrollArea>QWidget>QWidget{background:transparent;}"));
+    switchScroll->viewport()->setAutoFillBackground(false);
+    switchScroll->setWidget(switchList);
+    switchPageLayout->addWidget(switchScroll, 1);
+    m_stack->addWidget(switchPage);
+
     updateTitle();
+
     reload();
 }
 
@@ -672,11 +782,18 @@ void UsagePopupWidget::reload()
 {
     if (m_mode == Mode::Day) {
         rebuildDayView();
-    } else {
+    } else if (m_mode == Mode::Month) {
         rebuildMonthView();
+    } else {
+        rebuildSwitchView();
     }
+    const bool dayMode = (m_mode == Mode::Day);
+    if (m_summary)
+        m_summary->setVisible(dayMode);
+    if (m_lockLabel)
+        m_lockLabel->setVisible(dayMode);
     if (m_stack)
-        m_stack->setCurrentIndex(m_mode == Mode::Day ? 0 : 1);
+        m_stack->setCurrentIndex(dayMode ? 0 : (m_mode == Mode::Month ? 1 : 2));
     updateTitle();
     updateNavState();
 }
@@ -707,13 +824,36 @@ void UsagePopupWidget::toggleMode()
         }
         // 看的是别的月份：就停在该月 1 号
     }
-    m_modeBtn->setText(m_mode == Mode::Day ? QStringLiteral("月视图") : QStringLiteral("日视图"));
+    updateHeaderButtons();
     reload();
+}
+
+void UsagePopupWidget::toggleSwitchView()
+{
+    if (m_mode == Mode::Switch) {
+        m_mode = Mode::Day;
+        m_date = QDate::currentDate();
+        m_dayBeforeMonth = m_date;
+    } else {
+        m_dayBeforeMonth = m_date;
+        m_mode = Mode::Switch;
+        m_date = QDate::currentDate();
+    }
+    updateHeaderButtons();
+    reload();
+}
+
+void UsagePopupWidget::updateHeaderButtons()
+{
+    if (m_modeBtn)
+        m_modeBtn->setText(m_mode == Mode::Month ? QStringLiteral("日视图") : QStringLiteral("月视图"));
+    if (m_switchBtn)
+        m_switchBtn->setText(m_mode == Mode::Switch ? QStringLiteral("日视图") : QStringLiteral("切换"));
 }
 
 void UsagePopupWidget::prev()
 {
-    if (m_mode == Mode::Day)
+    if (m_mode == Mode::Day || m_mode == Mode::Switch)
         m_date = m_date.addDays(-1);
     else
         m_date = QDate(m_date.year(), m_date.month(), 1).addMonths(-1);
@@ -722,7 +862,7 @@ void UsagePopupWidget::prev()
 
 void UsagePopupWidget::next()
 {
-    if (m_mode == Mode::Day)
+    if (m_mode == Mode::Day || m_mode == Mode::Switch)
         m_date = m_date.addDays(1);
     else
         m_date = QDate(m_date.year(), m_date.month(), 1).addMonths(1);
@@ -732,7 +872,7 @@ void UsagePopupWidget::next()
 void UsagePopupWidget::goToday()
 {
     const QDate today = QDate::currentDate();
-    if (m_mode == Mode::Day) {
+    if (m_mode == Mode::Day || m_mode == Mode::Switch) {
         m_date = today;
     } else {
         m_date = QDate(today.year(), today.month(), 1);
@@ -743,7 +883,12 @@ void UsagePopupWidget::goToday()
 
 void UsagePopupWidget::updateTitle()
 {
-    if (m_mode == Mode::Day) {
+    if (m_mode == Mode::Switch) {
+        const QDate today = QDate::currentDate();
+        const QString suffix = (m_date == today) ? QStringLiteral(" · 今天") : QString();
+        // 标题行右侧还有两个按钮，这里只放日期，免得被挤掉
+        m_title->setText(m_date.toString(QStringLiteral("yyyy-MM-dd ddd")) + suffix);
+    } else if (m_mode == Mode::Day) {
         const QDate today = QDate::currentDate();
         const QString suffix = (m_date == today) ? QStringLiteral(" · 今天") : QString();
         m_title->setText(m_date.toString(QStringLiteral("yyyy-MM-dd ddd")) + suffix);
@@ -777,7 +922,7 @@ void UsagePopupWidget::setChartMode(int mode)
 
 void UsagePopupWidget::updateNavState()
 {
-    if (m_mode == Mode::Day) {
+    if (m_mode == Mode::Day || m_mode == Mode::Switch) {
         m_nextBtn->setEnabled(m_date < QDate::currentDate());
     } else {
         const QDate today = QDate::currentDate();
@@ -876,4 +1021,113 @@ void UsagePopupWidget::showAbout()
         label->setOpenExternalLinks(true);
     }
     box.exec();
+}
+
+void UsagePopupWidget::rebuildSwitchView()
+{
+    if (!m_switchLayout || !m_switchSummary)
+        return;
+    clearLayout(m_switchLayout);
+
+    const QString day = m_date.toString(QStringLiteral("yyyy-MM-dd"));
+    const QVector<SwitchRow> rows = m_storage->switchesForDay(day);
+    const QVector<DayEvent> events = m_storage->eventsForDay(day);
+    const SwitchStats st = computeSwitchStats(rows);
+
+    if (m_switchChart)
+        m_switchChart->setCounts(st.perHour);
+
+    if (st.total == 0) {
+        m_switchSummary->setText(QStringLiteral("这一天还没有记录到上下文切换。"));
+    } else {
+        QString text = QStringLiteral("共 %1 次切换 · 平均 %2 分钟一次")
+                           .arg(st.total)
+                           .arg(QString::number(st.avgIntervalMin, 'f', 1));
+        if (st.peakHour >= 0)
+            text += QStringLiteral(" · 高峰 %1 点 %2 次").arg(st.peakHour).arg(st.peakCount);
+        if (st.fragmented > 0)
+            text += QStringLiteral("\n碎片切换（上一个窗口停留不到 10 秒）%1 次").arg(st.fragmented);
+        m_switchSummary->setText(text);
+    }
+
+    auto caption = [this](const QString &text) {
+        QLabel *label = new QLabel(text);
+        label->setStyleSheet(QStringLiteral("color:%1; font-size:11px; padding-top:4px;").arg(secondaryText()));
+        m_switchLayout->addWidget(label);
+    };
+    auto line = [this](const QString &left, const QString &right, QWidget *trailing = nullptr) {
+        QWidget *row = new QWidget;
+        QHBoxLayout *h = new QHBoxLayout(row);
+        h->setContentsMargins(0, 1, 0, 1);
+        h->setSpacing(6);
+        QLabel *l = new QLabel(left);
+        l->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(primaryText()));
+        l->setWordWrap(true);
+        QLabel *r = new QLabel(right);
+        r->setStyleSheet(QStringLiteral("color:%1; font-size:11px;").arg(secondaryText()));
+        h->addWidget(l, 1);
+        if (!right.isEmpty()) {
+            h->addWidget(r, 0, Qt::AlignRight | Qt::AlignVCenter);
+        }
+        if (trailing)
+            h->addWidget(trailing, 0, Qt::AlignRight | Qt::AlignVCenter);
+        m_switchLayout->addWidget(row);
+    };
+
+    if (!st.topTransitions.isEmpty()) {
+        caption(QStringLiteral("高频跳转"));
+        for (const QPair<QString, int> &p : st.topTransitions)
+            line(p.first, QStringLiteral("%1 次").arg(p.second));
+    }
+    if (!st.topChats.isEmpty()) {
+        caption(QStringLiteral("企业微信会话"));
+        for (const QPair<QString, int> &p : st.topChats)
+            line(p.first, QStringLiteral("%1 次").arg(p.second));
+    }
+
+    caption(QStringLiteral("今日事件"));
+    if (events.isEmpty()) {
+        QLabel *empty = new QLabel(QStringLiteral("开会、被人叫走的时候记一条，这里就能看出工作被打断的次数。"));
+        empty->setWordWrap(true);
+        empty->setStyleSheet(QStringLiteral("color:%1; font-size:11px;").arg(secondaryText()));
+        m_switchLayout->addWidget(empty);
+    } else {
+        for (const DayEvent &e : events) {
+            const QString from = QDateTime::fromSecsSinceEpoch(e.startTs).time().toString(QStringLiteral("HH:mm"));
+            const QString to = QDateTime::fromSecsSinceEpoch(e.endTs).time().toString(QStringLiteral("HH:mm"));
+            QPushButton *del = new QPushButton(QStringLiteral("\u00d7"));
+            del->setFixedSize(16, 16);
+            del->setFlat(true);
+            del->setCursor(Qt::PointingHandCursor);
+            del->setStyleSheet(QStringLiteral("QPushButton{border:none;color:%1;font-size:12px;padding:0;}").arg(secondaryText()));
+            const int id = e.id;
+            connect(del, &QPushButton::clicked, this, [this, id]() {
+                m_storage->removeEvent(id);
+                rebuildSwitchView();
+            });
+            line(QStringLiteral("%1-%2  %3").arg(from, to, e.label), QString(), del);
+        }
+    }
+
+    QPushButton *add = new QPushButton(QStringLiteral("＋ 添加事件"));
+    add->setFlat(true);
+    add->setCursor(Qt::PointingHandCursor);
+    add->setStyleSheet(QStringLiteral("QPushButton{border:none;text-align:left;color:%1;font-size:12px;padding:4px 0;}")
+                           .arg(primaryText()));
+    connect(add, &QPushButton::clicked, this, &UsagePopupWidget::addEvent);
+    m_switchLayout->addWidget(add);
+    m_switchLayout->addStretch(1);
+}
+
+void UsagePopupWidget::addEvent()
+{
+    AddEventDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    const QDateTime start(m_date, dlg.startTime());
+    const qint64 dayEnd = QDateTime(m_date, QTime(23, 59, 59)).toSecsSinceEpoch();
+    const qint64 end = qMin(start.toSecsSinceEpoch() + qint64(dlg.minutes()) * 60, dayEnd);
+    m_storage->addEvent(m_date.toString(QStringLiteral("yyyy-MM-dd")), start.toSecsSinceEpoch(), end, dlg.label());
+    rebuildSwitchView();
 }

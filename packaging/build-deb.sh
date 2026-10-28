@@ -5,7 +5,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-1.1.1}"
+VERSION="${1:-1.2.0}"
 ARCH="${2:-$(dpkg --print-architecture)}"
 PKG=app-usage-monitor
 BUILD_DIR="$HERE/build-deb"
@@ -56,6 +56,7 @@ Architecture: $ARCH
 Maintainer: wangshaojun <wangshaojun@uniontech.com>
 Installed-Size: $INSTALLED_SIZE
 Depends: $DEPENDS
+Recommends: tesseract-ocr, tesseract-ocr-chi-sim
 Section: utils
 Priority: optional
 Homepage: https://github.com/shao-jun/monitor

@@ -2,6 +2,7 @@
 
 #include "usagestorage.h"
 #include "usagetracker.h"
+#include "contextswitch.h"
 #include "usagepopupwidget.h"
 #include "restnotifier.h"
 
@@ -51,6 +52,18 @@ AppUsageMonitorPlugin::AppUsageMonitorPlugin(QObject *parent)
 
     // 恢复上次设置的休息提醒间隔
     m_tracker->setRestWorkIntervalMs(qint64(restIntervalMinutes()) * 60 * 1000);
+
+    // 上下文切换：每秒看一次前台窗口，企业微信用 OCR 认当前会话
+    m_switchMonitor = new ContextSwitchMonitor(this);
+    m_switchMonitor->setStorage(m_storage);
+    m_switchMonitor->setRegistry(m_tracker->registry());
+    m_switchMonitor->setX11(m_tracker->x11());
+    connect(m_tracker, &UsageTracker::lockChanged, this,
+            [this](bool locked) { m_switchMonitor->setPaused(locked); });
+    connect(m_switchMonitor, &ContextSwitchMonitor::switched, this, [this]() {
+        if (m_popup && m_popup->isVisible() && m_popup->isShowingSwitches())
+            m_popup->reload();
+    });
     m_lastSettingsMtime = settingsMtime();
 
     // 配置文件被改了就即时生效，不需要重启任务栏
@@ -85,6 +98,8 @@ void AppUsageMonitorPlugin::init(PluginProxyInterface *proxyInter)
     m_itemKey = pluginName();
     m_proxyInter->itemAdded(this, m_itemKey);
     m_tracker->start(3000);
+    if (m_switchMonitor)
+        m_switchMonitor->start(1000);
 }
 
 QWidget *AppUsageMonitorPlugin::itemWidget(const QString &itemKey)

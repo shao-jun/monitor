@@ -6,6 +6,7 @@
 #include <QObject>
 
 class UsageTracker;
+class ContextSwitchMonitor;
 class UsagePopupWidget;
 class UsageStorage;
 class QLabel;
@@ -55,6 +56,7 @@ private:
     QLabel *m_itemLabel = nullptr;
     UsagePopupWidget *m_popup = nullptr;
     UsageTracker *m_tracker = nullptr;
+    ContextSwitchMonitor *m_switchMonitor = nullptr;
     UsageStorage *m_storage = nullptr;
     RestNotifier *m_notifier = nullptr;
     QLabel *m_tips = nullptr;

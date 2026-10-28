@@ -121,10 +121,32 @@ X11WindowInfo::ActiveApp X11WindowInfo::activeApp() const
         XFree(data);
     }
 
+    a.window = active;
     a.pid = static_cast<pid_t>(pid);
     readWmClass(active, a.wmClassInstance, a.wmClass);
     a.wmName = readStringProperty(active, m_netWmName);
 
     a.valid = (a.pid > 0) || !a.wmClassInstance.isEmpty() || !a.wmName.isEmpty();
     return a;
+}
+
+bool X11WindowInfo::windowRect(unsigned long win, int &x, int &y, int &width, int &height) const
+{
+    if (!m_ok || win == 0)
+        return false;
+
+    XWindowAttributes attr;
+    if (XGetWindowAttributes(m_display, win, &attr) != 1)
+        return false;
+
+    int absX = 0, absY = 0;
+    Window child = 0;
+    if (!XTranslateCoordinates(m_display, win, DefaultRootWindow(m_display), 0, 0, &absX, &absY, &child))
+        return false;
+
+    x = absX;
+    y = absY;
+    width = attr.width;
+    height = attr.height;
+    return width > 0 && height > 0;
 }

@@ -88,6 +88,7 @@ void UsageTracker::tick()
         const qint64 dt = now - m_lastTickMs;
         if (!m_locked) {
             m_locked = true;
+            emit lockChanged(true);
             flushNow();
         } else if (dt > 0) {
             m_lockBuffer[QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd"))] += dt;
@@ -103,6 +104,8 @@ void UsageTracker::tick()
             flushNow();
         return;
     }
+    if (m_locked)
+        emit lockChanged(false);
     m_locked = false;
     m_rest.endLock();
 

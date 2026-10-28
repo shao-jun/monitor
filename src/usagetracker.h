@@ -41,8 +41,12 @@ public:
         m_rest.reset();
     }
 
+    X11WindowInfo *x11() const { return m_x11; }
+    AppRegistry *registry() const { return m_registry; }
+
 signals:
     void restReminder(qint64 workedMs);
+    void lockChanged(bool locked);
     void continuousWorkChanged(qint64 workedMs);
 
 public slots:

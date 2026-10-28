@@ -32,6 +32,15 @@ public:
     QVector<AppUsageRow> queryMonth(const QString &yearMonth) const;
     QVector<QPair<int, qint64>> queryMonthDailyTotals(const QString &yearMonth) const;
 
+    // ---- 上下文切换 ----
+    void addSwitch(const QString &date, const SwitchRow &row);
+    QVector<SwitchRow> switchesForDay(const QString &date) const;
+
+    // ---- 手动事件（出去开会等）----
+    int addEvent(const QString &date, qint64 startTs, qint64 endTs, const QString &label);
+    QVector<DayEvent> eventsForDay(const QString &date) const;
+    void removeEvent(int id);
+
 private:
     QSqlDatabase m_db;
 };
