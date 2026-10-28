@@ -12,6 +12,9 @@ class ChatTitleOcr
 public:
     explicit ChatTitleOcr(X11WindowInfo *x11 = nullptr);
 
+    // 从 OCR 原始文本里挑出会话名（纯字符串处理，便于单测）
+    static QString pickTitle(const QString &raw, const QString &appName);
+
     void setX11(X11WindowInfo *x11) { m_x11 = x11; }
     bool available() const;
     bool enabled() const { return m_enabled; }
@@ -21,7 +24,6 @@ public:
     QString titleForWindow(unsigned long winId, const QString &appName);
 
 private:
-    static QString pickTitle(const QString &raw, const QString &appName);
 
     X11WindowInfo *m_x11 = nullptr;
     bool m_enabled = true;

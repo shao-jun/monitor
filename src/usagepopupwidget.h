@@ -13,6 +13,7 @@ class QLabel;
 class QPushButton;
 class QStackedWidget;
 class QVBoxLayout;
+class QScrollArea;
 
 class UsagePopupWidget : public QWidget
 {
@@ -77,6 +78,8 @@ private:
     QLabel *m_switchSummary = nullptr;
     SwitchChartWidget *m_switchChart = nullptr;
     QVBoxLayout *m_switchLayout = nullptr;
+    QWidget *m_switchList = nullptr;
+    QScrollArea *m_switchScroll = nullptr;
 };
 
 #endif // USAGEPOPUPWIDGET_H

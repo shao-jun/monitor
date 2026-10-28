@@ -144,25 +144,43 @@ QString ChatTitleOcr::pickTitle(const QString &raw, const QString &appName)
             title = parts.first().trimmed();
 
         // 去掉 OCR 常见噪声：箭头、引号、括号、句读，出现在中间也一并清掉
-        static const QString junk = QStringLiteral("\t·|<>\u2324\u2039\u203a\"\u201c\u201d\u2018\u2019()\uff08\uff09[]\u3010\u3011\uff0c,\u3001\uff1a\uff1b");
+        // 注意别把【】（）这类括号当噪声：群名里全是它们
+        static const QString junk = QStringLiteral("\t·|<>\u2324\u2039\u203a\"\u201c\u201d\u2018\u2019\uff0c,\u3001\uff1a\uff1b");
         for (int i = title.size() - 1; i >= 0; --i) {
             if (junk.contains(title.at(i)))
                 title.remove(i, 1);
         }
         title = title.simplified();
 
-        // 单字噪声（「咽」「一」这种被切碎的字）夹在名字里毫无信息，去掉
-        if (title.count(QLatin1Char(' ')) >= 1) {
-            const QStringList toks = title.split(QLatin1Char(' '), QString::SkipEmptyParts);
-            QStringList kept;
-            for (const QString &t : toks) {
-                if (t.size() == 1 && kept.size() >= 1 && toks.size() > 2)
-                    continue;
-                kept.append(t);
-            }
-            title = kept.join(QLatin1Char(' '));
-        }
         title = title.trimmed();
+
+        // 私聊标题栏只有对方的名字，OCR 常把右边状态/图标读成一串杂字（「荷浩 咽 全」那种）。
+        // 判据：不像群名（没有【】、括号、数字），并且尾巴里出现了单字或非汉字碎片 —— 那就只留第一个词。
+        const bool looksGroup = title.contains(QRegExp(QStringLiteral("[【】\\[\\]()（）0-9]")));
+        if (!looksGroup) {
+            const QStringList toks = title.split(QLatin1Char(' '), QString::SkipEmptyParts);
+            if (toks.size() >= 2) {
+                const QString first = toks.first();
+                bool noisyTail = false;
+                for (int i = 1; i < toks.size(); ++i) {
+                    const QString &tok = toks.at(i);
+                    if (tok.size() <= 1) {
+                        noisyTail = true;
+                        break;
+                    }
+                    for (const QChar &c : tok) {
+                        if (c.script() != QChar::Script_Han) {
+                            noisyTail = true;
+                            break;
+                        }
+                    }
+                    if (noisyTail)
+                        break;
+                }
+                if (noisyTail && first.size() >= 2 && first.size() <= 8)
+                    title = first;
+            }
+        }
 
         int han = 0;
         int latin = 0;

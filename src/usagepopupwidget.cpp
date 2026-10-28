@@ -13,11 +13,12 @@
 #include <QPainterPath>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QTimer>
 #include <QShowEvent>
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.2.1"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.2.2"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>
@@ -750,11 +751,13 @@ UsagePopupWidget::UsagePopupWidget(UsageStorage *storage, QWidget *parent)
     m_switchChart = new SwitchChartWidget;
     switchPageLayout->addWidget(m_switchChart);
 
-    QWidget *switchList = new QWidget;
+    m_switchList = new QWidget;
+    QWidget *switchList = m_switchList;
     m_switchLayout = new QVBoxLayout(switchList);
     m_switchLayout->setContentsMargins(0, 0, 0, 0);
     m_switchLayout->setSpacing(2);
     QScrollArea *switchScroll = new QScrollArea;
+    m_switchScroll = switchScroll;
     switchScroll->setWidgetResizable(true);
     switchScroll->setFrameShape(QFrame::NoFrame);
     switchScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -774,7 +777,12 @@ void UsagePopupWidget::showEvent(QShowEvent *e)
 {
     QWidget::showEvent(e);
     const QDate today = QDate::currentDate();
-    m_date = (m_mode == Mode::Day) ? today : QDate(today.year(), today.month(), 1);
+    // 只有月视图才回到本月 1 号；日视图和切换页都停在今天，
+    // 否则重新打开时切换页会去查「本月 1 号」的切换记录，看着就是空白
+    if (m_mode == Mode::Month)
+        m_date = QDate(today.year(), today.month(), 1);
+    else
+        m_date = today;
     emit opened();
 }
 
@@ -1120,6 +1128,15 @@ void UsagePopupWidget::rebuildSwitchView()
             line(QStringLiteral("%1-%2  %3").arg(from, to, e.label), QString(), del);
         }
     }
+
+    // 弹窗刚显示时尺寸可能还没定，内容控件按旧尺寸量出来是 0，会显示成空白页；
+    // 这里主动激活布局并让滚动内容重新量高，再让视口重刷一次
+    if (m_switchList && m_switchList->layout()) {
+        m_switchList->layout()->activate();
+        m_switchList->adjustSize();
+    }
+    if (m_switchScroll && m_switchScroll->viewport())
+        m_switchScroll->viewport()->update();
 
     QPushButton *add = new QPushButton(QStringLiteral("＋ 添加事件"));
     add->setFlat(true);
