@@ -15,7 +15,7 @@ AddEventDialog::AddEventDialog(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("添加事件"));
-    setMinimumWidth(300);
+    setMinimumWidth(360);
 
     QVBoxLayout *root = new QVBoxLayout(this);
     root->setContentsMargins(14, 14, 14, 12);
@@ -43,7 +43,7 @@ AddEventDialog::AddEventDialog(QWidget *parent)
 
     // 常用事件，一点就填好
     QHBoxLayout *chips = new QHBoxLayout;
-    chips->setSpacing(6);
+    chips->setSpacing(4);
     const QStringList presets{QStringLiteral("出去开会"), QStringLiteral("被人叫走"),
                               QStringLiteral("接电话"), QStringLiteral("休息")};
     for (const QString &text : presets) {

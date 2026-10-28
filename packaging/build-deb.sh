@@ -5,7 +5,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-1.2.0}"
+VERSION="${1:-1.2.1}"
 ARCH="${2:-$(dpkg --print-architecture)}"
 PKG=app-usage-monitor
 BUILD_DIR="$HERE/build-deb"
@@ -23,6 +23,7 @@ echo "==> 组装文件树"
 rm -rf "$STAGE"
 install -D -m 755 "$SO" "$STAGE/usr/lib/dde-dock/plugins/libapp-usage-monitor.so"
 install -D -m 755 "$HERE/packaging/app-usage-monitor-rest" "$STAGE/usr/bin/app-usage-monitor-rest"
+install -D -m 755 "$BUILD_DIR/out/app-usage-monitor-export" "$STAGE/usr/bin/app-usage-monitor-export"
 install -D -m 644 "$HERE/README.md" "$STAGE/usr/share/doc/$PKG/README.md"
 install -D -m 644 "$HERE/LICENSE" "$STAGE/usr/share/doc/$PKG/copyright"
 mkdir -p "$STAGE/usr/share/doc/$PKG"

@@ -143,12 +143,25 @@ QString ChatTitleOcr::pickTitle(const QString &raw, const QString &appName)
         if (!parts.isEmpty())
             title = parts.first().trimmed();
 
-        // 去掉 OCR 常见噪声：末尾的箭头、引号、括号等
-        static const QString junk = QStringLiteral(" \t·|<>\u2324\u2039\u203a\"\u201c\u201d\u2018\u2019()\uff08\uff09[]\u3010\u3011\uff0c,\u3001");
-        while (!title.isEmpty() && junk.contains(title.at(title.size() - 1)))
-            title.chop(1);
-        while (!title.isEmpty() && junk.contains(title.at(0)))
-            title.remove(0, 1);
+        // 去掉 OCR 常见噪声：箭头、引号、括号、句读，出现在中间也一并清掉
+        static const QString junk = QStringLiteral("\t·|<>\u2324\u2039\u203a\"\u201c\u201d\u2018\u2019()\uff08\uff09[]\u3010\u3011\uff0c,\u3001\uff1a\uff1b");
+        for (int i = title.size() - 1; i >= 0; --i) {
+            if (junk.contains(title.at(i)))
+                title.remove(i, 1);
+        }
+        title = title.simplified();
+
+        // 单字噪声（「咽」「一」这种被切碎的字）夹在名字里毫无信息，去掉
+        if (title.count(QLatin1Char(' ')) >= 1) {
+            const QStringList toks = title.split(QLatin1Char(' '), QString::SkipEmptyParts);
+            QStringList kept;
+            for (const QString &t : toks) {
+                if (t.size() == 1 && kept.size() >= 1 && toks.size() > 2)
+                    continue;
+                kept.append(t);
+            }
+            title = kept.join(QLatin1Char(' '));
+        }
         title = title.trimmed();
 
         int han = 0;

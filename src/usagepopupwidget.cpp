@@ -17,7 +17,7 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.2.0"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.2.1"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>
@@ -1037,8 +1037,17 @@ void UsagePopupWidget::rebuildSwitchView()
     if (m_switchChart)
         m_switchChart->setCounts(st.perHour);
 
+    qint64 eventSec = 0;
+    for (const DayEvent &e : events)
+        eventSec += qMax<qint64>(0, e.endTs - e.startTs);
+    const QString eventLine = events.isEmpty()
+                                  ? QString()
+                                  : QStringLiteral("\n外部事件 %1 次 · 共 %2 分钟")
+                                        .arg(events.size())
+                                        .arg(eventSec / 60);
+
     if (st.total == 0) {
-        m_switchSummary->setText(QStringLiteral("这一天还没有记录到上下文切换。"));
+        m_switchSummary->setText(QStringLiteral("这一天还没有记录到上下文切换。") + eventLine);
     } else {
         const bool enough = (st.lastTs - st.firstTs) >= 600 && st.total >= 5;
         QString text = enough
@@ -1050,7 +1059,7 @@ void UsagePopupWidget::rebuildSwitchView()
             text += QStringLiteral(" · 高峰 %1 点 %2 次").arg(st.peakHour).arg(st.peakCount);
         if (st.fragmented > 0)
             text += QStringLiteral("\n碎片切换（上一个窗口停留不到 10 秒）%1 次").arg(st.fragmented);
-        m_switchSummary->setText(text);
+        m_switchSummary->setText(text + eventLine);
     }
 
     auto caption = [this](const QString &text) {

@@ -6,10 +6,10 @@
 
 ## 下载
 
-现成的安装包（amd64）：[app-usage-monitor_1.2.0_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
+现成的安装包（amd64）：[app-usage-monitor_1.2.1_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.2.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.2.1_amd64.deb
 kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 ```
 
@@ -81,6 +81,30 @@ intervalMinutes=45    # 0 = 关闭
 > 右键菜单需要 dde-dock 支持插件自定义菜单项（本机 5.10.x 可用）。如果你的任务栏右键没有这些项，用命令行的方式一样生效。
 
 > 「查看」等于窗口有焦点但没输入，所以挂着窗口离开座位也会累计。要让自己准时休息，离开时请锁屏——锁屏 3 分钟后回来，计时就重新开始了。
+
+## 导出数据
+
+数据都在本机 SQLite 里，随时可以导成 CSV（UTF-8 带 BOM，Excel / WPS 直接打开）：
+
+```bash
+app-usage-monitor-export                    # 最近 14 天，导到 ~/下载/app-usage-export-<起>_<止>/
+app-usage-monitor-export --days 30          # 最近 30 天
+app-usage-monitor-export --from 2026-10-01 --to 2026-10-14
+app-usage-monitor-export --out /tmp/dump    # 指定目录
+```
+
+导出的文件：
+
+| 文件 | 内容 |
+| --- | --- |
+| `daily_usage.csv` | 每天每个应用的操作/查看/合计分钟数 |
+| `hourly_usage.csv` | 每天每小时的操作/查看/锁屏分钟数 |
+| `locks.csv` | 每天锁屏分钟数 |
+| `switches.csv` | 每次切换的明细：时间、类型（window/chat）、前后应用与上下文、停留秒数 |
+| `events.csv` | 手动事件明细：日期、起止时间、分钟数、名称 |
+| `summary.csv` | 每天一行：切换次数、碎片切换、最长专注、事件次数与分钟数 |
+
+数据只在本机，导出的 CSV 也只写到本机目录，不上传任何地方。
 
 ## 上下文切换
 
@@ -197,7 +221,7 @@ kill "$(pgrep -x dde-dock)"   # 由 startdde 自动拉起
 对方收到后：
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.2.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.2.1_amd64.deb
 # 装完重启一次任务栏，图标才会出现
 kill $(pgrep -x dde-dock)
 ```
@@ -238,6 +262,8 @@ rm -rf ~/.local/share/app-usage-monitor   # 连同历史数据一起删除（可
 │   ├── chattitleocr.*            # 截图 + tesseract 识别企业微信会话名
 │   ├── switchstats.*             # 切换统计（次数/间隔/高峰/高频跳转，纯计算可单测）
 │   ├── addeventdialog.*          # 添加事件对话框
+├── tools/
+│   └── export.cpp                # app-usage-monitor-export：导出 CSV
 │   └── usageentry.h              # 数据结构
 ├── packaging/
 │   ├── build-deb.sh                    # 打 deb

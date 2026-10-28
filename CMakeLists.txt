@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(app-usage-monitor VERSION 1.2.0 LANGUAGES CXX)
+project(app-usage-monitor VERSION 1.2.1 LANGUAGES CXX)
 
 # 版本号只在 CMake 里维护，C++ 侧用 APP_USAGE_VERSION 引用
 add_definitions(-DAPP_USAGE_VERSION="${PROJECT_VERSION}")
@@ -64,4 +64,11 @@ target_link_libraries(app-usage-monitor PRIVATE
 # 输出 libapp-usage-monitor.so，与任务栏插件命名规范一致
 set_target_properties(app-usage-monitor PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out"
+)
+
+# 导出工具：把数据库导成 CSV（不依赖任务栏，单独装到 /usr/bin）
+add_executable(app-usage-monitor-export tools/export.cpp)
+target_link_libraries(app-usage-monitor-export PRIVATE Qt5::Core Qt5::Sql)
+set_target_properties(app-usage-monitor-export PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out"
 )
