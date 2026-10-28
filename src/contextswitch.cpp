@@ -111,7 +111,9 @@ void ContextSwitchMonitor::tick()
 
     SwitchRow row;
     row.ts = now;
-    row.kind = (appName == m_lastApp) ? QStringLiteral("chat") : QStringLiteral("window");
+    // 只有企业微信里换会话才算 chat；别的应用换了标题（SmartGit 换仓库、浏览器换页）仍是窗口切换，
+    // 否则「企业微信会话 Top」里会混进一堆无关的标题
+    row.kind = (appName == m_lastApp && isWxWork) ? QStringLiteral("chat") : QStringLiteral("window");
     row.fromApp = m_lastApp;
     row.toApp = appName;
     row.fromCtx = m_lastCtx;

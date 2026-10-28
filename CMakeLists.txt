@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(app-usage-monitor VERSION 1.2.3 LANGUAGES CXX)
+project(app-usage-monitor VERSION 1.2.4 LANGUAGES CXX)
 
 # 版本号只在 CMake 里维护，C++ 侧用 APP_USAGE_VERSION 引用
 add_definitions(-DAPP_USAGE_VERSION="${PROJECT_VERSION}")
