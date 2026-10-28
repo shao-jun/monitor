@@ -1040,9 +1040,12 @@ void UsagePopupWidget::rebuildSwitchView()
     if (st.total == 0) {
         m_switchSummary->setText(QStringLiteral("这一天还没有记录到上下文切换。"));
     } else {
-        QString text = QStringLiteral("共 %1 次切换 · 平均 %2 分钟一次")
-                           .arg(st.total)
-                           .arg(QString::number(st.avgIntervalMin, 'f', 1));
+        const bool enough = (st.lastTs - st.firstTs) >= 600 && st.total >= 5;
+        QString text = enough
+                           ? QStringLiteral("共 %1 次切换 · 平均 %2 分钟一次")
+                                 .arg(st.total)
+                                 .arg(QString::number(st.avgIntervalMin, 'f', 1))
+                           : QStringLiteral("共 %1 次切换（记录还少，先不算平均间隔）").arg(st.total);
         if (st.peakHour >= 0)
             text += QStringLiteral(" · 高峰 %1 点 %2 次").arg(st.peakHour).arg(st.peakCount);
         if (st.fragmented > 0)

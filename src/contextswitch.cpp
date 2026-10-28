@@ -67,6 +67,14 @@ void ContextSwitchMonitor::tick()
         appName = !a.wmClass.isEmpty() ? a.wmClass : a.wmName;
     if (appName.isEmpty())
         return;
+    // 没有 .desktop 匹配时拿到的是 wmClass（常见小写类名），显示上前缀大写更顺眼
+    if (appName.size() > 1 && appName.at(0).isLower()) {
+        bool ascii = true;
+        for (const QChar &c : appName)
+            if (c.unicode() > 127) { ascii = false; break; }
+        if (ascii)
+            appName[0] = appName.at(0).toUpper();
+    }
 
     // 企业微信窗口标题恒定，只能靠截图认当前会话
     QString ctx = a.wmName;
