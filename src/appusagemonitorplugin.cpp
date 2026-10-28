@@ -71,6 +71,17 @@ AppUsageMonitorPlugin::AppUsageMonitorPlugin(QObject *parent)
     m_settingsTimer->setInterval(5000);
     connect(m_settingsTimer, &QTimer::timeout, this, &AppUsageMonitorPlugin::reloadRestIntervalIfChanged);
     m_settingsTimer->start();
+
+    // 退出前主动收尾：插件是静态实例，销毁发生在 Qt 全局对象析构之后，
+    // 那时再动 QSqlDatabase 会段错误（dde-dock 退出时留下的崩溃）
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+        if (m_switchMonitor)
+            m_switchMonitor->setPaused(true);
+        if (m_tracker)
+            m_tracker->stop();
+        if (m_storage)
+            m_storage->close();
+    });
 }
 
 AppUsageMonitorPlugin::~AppUsageMonitorPlugin()

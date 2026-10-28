@@ -16,6 +16,7 @@ UsageStorage::~UsageStorage()
 
 bool UsageStorage::open(const QString &dbPath)
 {
+    m_closed = false;
     const QFileInfo fi(dbPath);
     QDir().mkpath(fi.absolutePath());
 
@@ -77,6 +78,11 @@ bool UsageStorage::isOpen() const
 
 void UsageStorage::close()
 {
+    // 进程退出时 Qt 的 QSqlDatabase 全局表可能已经先被销毁，这里只做一次、且可重入，
+    // 避免静态插件实例在 __cxa_finalize 阶段再碰数据库导致退出时段错误
+    if (m_closed)
+        return;
+    m_closed = true;
     if (m_db.isValid()) {
         const QString name = m_db.connectionName();
         m_db.close();

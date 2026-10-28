@@ -43,6 +43,7 @@ public:
 
 private:
     QSqlDatabase m_db;
+    bool m_closed = false;
 };
 
 #endif // USAGESTORAGE_H
