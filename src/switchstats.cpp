@@ -90,7 +90,7 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
 
     st.topApps = top(apps, 6);
     st.topTransitions = top(transitions, 5);
-    st.topChats = top(chats, 15);
+    st.topChats = top(chats, chats.size()); // 全部列出，别让标题的「共 N 个」和清单对不上
     st.chatCount = chats.size();
 
     if (st.total > 1 && st.lastTs > st.firstTs) {

@@ -19,7 +19,7 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.3.1"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.3.2"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>
@@ -1146,9 +1146,7 @@ void UsagePopupWidget::rebuildSwitchView()
             line(p.first, QStringLiteral("%1 次").arg(p.second));
     }
     if (!st.topChats.isEmpty()) {
-        caption(st.chatCount > st.topChats.size()
-                    ? QStringLiteral("企业微信会话（共 %1 个）").arg(st.chatCount)
-                    : QStringLiteral("企业微信会话"));
+        caption(QStringLiteral("企业微信会话（共 %1 个）").arg(st.chatCount));
         for (const QPair<QString, int> &p : st.topChats)
             line(p.first, QStringLiteral("%1 次").arg(p.second));
     }
