@@ -15,6 +15,7 @@ struct SwitchStats {
     QVector<QPair<QString, int>> topApps;         // 每个应用被切进去的次数："Hermes 12"
     QVector<QPair<QString, int>> topTransitions;   // 跨应用跳转，企业微信那侧写具体会话："Hermes → 高维舟"
     QVector<QPair<QString, int>> topChats;         // 企业微信会话名（被切进去的次数）
+    int chatCount = 0;                             // 当天涉及的会话个数
     double avgIntervalMin = 0.0;                   // 平均多少分钟切一次
     int peakHour = -1;
     int peakCount = 0;

@@ -63,10 +63,10 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
         if (!fromSide.isEmpty() && !toSide.isEmpty() && fromSide != toSide)
             ++transitions[QStringLiteral("%1 → %2").arg(fromSide, toSide)];
 
-        if (r.kind == QLatin1String("chat")) {
-            if (!r.toCtx.isEmpty())
-                ++chats[r.toCtx];
-        }
+        // 只要切进了企业微信的某个具体会话就算一次 —— 之前只在 kind=chat（企业微信内部换聊天）
+        // 时统计，从浏览器/终端切回来那次全漏掉了，会话次数被严重低估
+        if (isWxWork(r.toApp) && !r.toCtx.isEmpty() && r.toCtx != r.toApp && !isWxWork(r.toCtx))
+            ++chats[r.toCtx];
     }
 
     for (int h = 0; h < 24; ++h) {
@@ -90,7 +90,8 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
 
     st.topApps = top(apps, 6);
     st.topTransitions = top(transitions, 5);
-    st.topChats = top(chats, 5);
+    st.topChats = top(chats, 15);
+    st.chatCount = chats.size();
 
     if (st.total > 1 && st.lastTs > st.firstTs) {
         const double minutes = double(st.lastTs - st.firstTs) / 60.0;

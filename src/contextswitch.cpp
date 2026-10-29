@@ -10,7 +10,7 @@
 #include "x11windowinfo.h"
 
 namespace {
-const int kOcrThrottleMs = 4000; // 企业微信里最多每 4 秒认一次字
+const int kOcrThrottleMs = 2000; // 企业微信里最多每 2 秒认一次字
 }
 
 ContextSwitchMonitor::ContextSwitchMonitor(QObject *parent)
@@ -82,7 +82,9 @@ void ContextSwitchMonitor::tick()
                           || a.wmName.contains(QStringLiteral("企业微信")) || appName.contains(QStringLiteral("企业微信"));
     if (isWxWork) {
         const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-        if (m_ocr && m_ocr->enabled() && nowMs - m_lastOcrAt >= kOcrThrottleMs) {
+        // 刚从别的应用切进来时立刻认一次，不等节流，否则这一次会被记成上一个会话
+        const bool justActivated = (appName != m_lastApp);
+        if (m_ocr && m_ocr->enabled() && (justActivated || nowMs - m_lastOcrAt >= kOcrThrottleMs)) {
             m_lastOcrAt = nowMs;
             const QString title = m_ocr->titleForWindow(a.window, appName);
             if (!title.isEmpty())
