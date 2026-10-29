@@ -19,7 +19,7 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.2.6"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.2.7"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>
@@ -1113,11 +1113,6 @@ void UsagePopupWidget::rebuildSwitchView()
     if (!st.topApps.isEmpty()) {
         caption(QStringLiteral("应用切换"));
         for (const QPair<QString, int> &p : st.topApps)
-            line(p.first, QStringLiteral("%1 次").arg(p.second));
-    }
-    if (!st.topChatHops.isEmpty()) {
-        caption(QStringLiteral("企业微信内换会话"));
-        for (const QPair<QString, int> &p : st.topChatHops)
             line(p.first, QStringLiteral("%1 次").arg(p.second));
     }
     if (!st.topChats.isEmpty()) {
