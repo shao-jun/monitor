@@ -35,6 +35,7 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
         return st;
 
     QHash<QString, int> transitions;
+    QHash<QString, int> apps;
     QHash<QString, int> chatHops;
     QHash<QString, int> chats;
 
@@ -55,6 +56,9 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
 
         // 企业微信内部换会话也算一次跳转（「荷浩 → 项目群」），所以要按具体会话拼标签，
         // 不能再用 fromApp != toApp 过滤
+        if (!r.toApp.isEmpty())
+            ++apps[r.toApp];
+
         const QString fromSide = elide(sideLabel(r.fromApp, r.fromCtx));
         const QString toSide = elide(sideLabel(r.toApp, r.toCtx));
         if (!fromSide.isEmpty() && !toSide.isEmpty() && fromSide != toSide)
@@ -88,6 +92,7 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
         return list;
     };
 
+    st.topApps = top(apps, 6);
     st.topTransitions = top(transitions, 5);
     st.topChatHops = top(chatHops, 5);
     st.topChats = top(chats, 5);

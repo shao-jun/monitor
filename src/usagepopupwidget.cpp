@@ -7,6 +7,7 @@
 
 #include <QDateTime>
 #include <QFontMetrics>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
@@ -18,7 +19,7 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.2.5"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.2.6"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>
@@ -1070,10 +1071,25 @@ void UsagePopupWidget::rebuildSwitchView()
         m_switchSummary->setText(text + eventLine);
     }
 
+    // 分区标题：两侧各一条横线，把区块分清楚
     auto caption = [this](const QString &text) {
+        QWidget *row = new QWidget;
+        QHBoxLayout *h = new QHBoxLayout(row);
+        h->setContentsMargins(0, 6, 0, 0);
+        h->setSpacing(6);
+        auto makeLine = [this]() {
+            QFrame *f = new QFrame;
+            f->setFrameShape(QFrame::HLine);
+            f->setFixedHeight(1);
+            f->setStyleSheet(QStringLiteral("background:%1; border:none;").arg(secondaryText()));
+            return f;
+        };
         QLabel *label = new QLabel(text);
-        label->setStyleSheet(QStringLiteral("color:%1; font-size:11px; padding-top:4px;").arg(secondaryText()));
-        m_switchLayout->addWidget(label);
+        label->setStyleSheet(QStringLiteral("color:%1; font-size:11px;").arg(secondaryText()));
+        h->addWidget(makeLine(), 1);
+        h->addWidget(label, 0);
+        h->addWidget(makeLine(), 1);
+        m_switchLayout->addWidget(row);
     };
     auto line = [this](const QString &left, const QString &right, QWidget *trailing = nullptr) {
         QWidget *row = new QWidget;
@@ -1094,9 +1110,9 @@ void UsagePopupWidget::rebuildSwitchView()
         m_switchLayout->addWidget(row);
     };
 
-    if (!st.topTransitions.isEmpty()) {
-        caption(QStringLiteral("高频跳转"));
-        for (const QPair<QString, int> &p : st.topTransitions)
+    if (!st.topApps.isEmpty()) {
+        caption(QStringLiteral("应用切换"));
+        for (const QPair<QString, int> &p : st.topApps)
             line(p.first, QStringLiteral("%1 次").arg(p.second));
     }
     if (!st.topChatHops.isEmpty()) {
