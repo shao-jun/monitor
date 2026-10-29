@@ -128,16 +128,23 @@ QString ChatTitleOcr::titleForWindow(unsigned long winId, const QString &appName
         if (!img.save(path, "PNG"))
             continue;
 
-        QProcess proc;
-        proc.start(QStringLiteral("tesseract"),
-                   {path, QStringLiteral("-"), QStringLiteral("-l"), QStringLiteral("chi_sim+eng"),
-                    QStringLiteral("--psm"), QStringLiteral("6")});
+        // 先只用中文模型：chi_sim+eng 会把「吴博文」认成「RSI」这种拉丁垃圾，
+        // 中文名才是主场景；中文认不出来再回退到混合模型（英文群名靠它）
         QString out;
-        if (proc.waitForFinished(3000))
-            out = QString::fromUtf8(proc.readAllStandardOutput());
-        else
-            proc.kill();
-        const QString title = pickTitle(out, appName);
+        QString title;
+        for (const QString &lang : {QStringLiteral("chi_sim"), QStringLiteral("chi_sim+eng")}) {
+            QProcess proc;
+            proc.start(QStringLiteral("tesseract"),
+                       {path, QStringLiteral("-"), QStringLiteral("-l"), lang,
+                        QStringLiteral("--psm"), QStringLiteral("6")});
+            if (proc.waitForFinished(3000))
+                out = QString::fromUtf8(proc.readAllStandardOutput());
+            else
+                proc.kill();
+            title = pickTitle(out, appName);
+            if (!title.isEmpty())
+                break;
+        }
         if (!title.isEmpty()) {
             // 只有拉丁字母、又特别短的（「ZAG」这种），八成是 OCR 认歪了，
             // 留一张条带图 + 原始文本，方便回头核对到底读到了什么
@@ -165,6 +172,7 @@ QString ChatTitleOcr::pickTitle(const QString &raw, const QString &appName)
     // 标题行是「会话名 + 下拉箭头 + 职位/状态」，右边那截是干扰，先按关键词切掉
     static const QStringList subtitles{
         QStringLiteral("研发经理"), QStringLiteral("经理"), QStringLiteral("工程师"),
+        QStringLiteral("资深"), QStringLiteral("研发"), QStringLiteral("桌面"),
         QStringLiteral("主管"), QStringLiteral("总监"), QStringLiteral("专员"),
         QStringLiteral("助理"), QStringLiteral("组长"), QStringLiteral("专家"),
         QStringLiteral("实习生"), QStringLiteral("在线"), QStringLiteral("离线"),
@@ -178,10 +186,13 @@ QString ChatTitleOcr::pickTitle(const QString &raw, const QString &appName)
             continue;
 
         int cut = line.size();
+        bool roleFound = false;
         for (const QString &word : subtitles) {
             const int idx = line.indexOf(word);
-            if (idx > 0 && idx < cut)
+            if (idx > 0 && idx < cut) {
                 cut = idx;
+                roleFound = true;
+            }
         }
         QString title = line.left(cut).trimmed();
 
@@ -200,32 +211,20 @@ QString ChatTitleOcr::pickTitle(const QString &raw, const QString &appName)
 
         title = title.trimmed();
 
-        // 私聊标题栏只有对方的名字，OCR 常把右边状态/图标读成一串杂字（「荷浩 咽 全」那种）。
-        // 判据：不像群名（没有【】、括号、数字），并且尾巴里出现了单字或非汉字碎片 —— 那就只留第一个词。
-        const bool looksGroup = title.contains(QRegExp(QStringLiteral("[【】\\[\\]()（）0-9]")));
-        if (!looksGroup) {
-            const QStringList toks = title.split(QLatin1Char(' '), QString::SkipEmptyParts);
-            if (toks.size() >= 2) {
-                const QString first = toks.first();
-                bool noisyTail = false;
-                for (int i = 1; i < toks.size(); ++i) {
-                    const QString &tok = toks.at(i);
-                    if (tok.size() <= 1) {
-                        noisyTail = true;
-                        break;
-                    }
-                    for (const QChar &c : tok) {
-                        if (c.script() != QChar::Script_Han) {
-                            noisyTail = true;
-                            break;
-                        }
-                    }
-                    if (noisyTail)
-                        break;
-                }
-                if (noisyTail && first.size() >= 2 && first.size() <= 8)
-                    title = first;
+        const QStringList toks = title.split(QLatin1Char(' '), QString::SkipEmptyParts);
+        if (roleFound) {
+            // 标题行里带职位（资深桌面研发工程师…）说明是一对一私聊，会话名就是最前面那个词，
+            // 后面那些是状态图标被 OCR 认出来的杂字
+            if (!toks.isEmpty())
+                title = toks.first();
+        } else if (toks.size() >= 2) {
+            // 群名：去掉尾部单字噪声（「DDE V20 拉」那种）
+            QStringList tail = toks;
+            while (tail.size() >= 2 && tail.last().size() <= 1) {
+                title.chop(tail.last().size());
+                tail.removeLast();
             }
+            title = title.trimmed();
         }
 
         int han = 0;
@@ -236,8 +235,23 @@ QString ChatTitleOcr::pickTitle(const QString &raw, const QString &appName)
             else if (c.isLetterOrNumber())
                 ++latin;
         }
-        if (han < 2 && latin < 3)
-            continue;
+        // 纯拉丁的短串（ZAG、RSI 这种 3 个字母）基本都是把汉字认歪了，宁可当作没认出来
+        if (han < 2) {
+            if (latin < 4)
+                continue;
+            // 纯英文的会话名（DDE V20、Google Chrome）每个词都该大写或数字开头，
+            // 「BS were 7 rr) eas」这种是小写英文句子，直接判为识别失败
+            bool ok = true;
+            for (const QString &tok : title.split(QLatin1Char(' '), QString::SkipEmptyParts)) {
+                const QChar c0 = tok.at(0);
+                if (!c0.isUpper() && !c0.isDigit()) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (!ok)
+                continue;
+        }
         if (title.contains(QStringLiteral("企业微信")) || title == appName)
             continue;
         return title.left(60);
