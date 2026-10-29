@@ -6,10 +6,10 @@
 
 ## 下载
 
-现成的安装包（amd64）：[app-usage-monitor_1.3.0_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
+现成的安装包（amd64）：[app-usage-monitor_1.3.1_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.3.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.3.1_amd64.deb
 kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 ```
 
@@ -221,7 +221,7 @@ kill "$(pgrep -x dde-dock)"   # 由 startdde 自动拉起
 对方收到后：
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.3.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.3.1_amd64.deb
 # 装完重启一次任务栏，图标才会出现
 kill $(pgrep -x dde-dock)
 ```

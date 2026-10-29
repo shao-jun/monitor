@@ -235,6 +235,20 @@ QString ChatTitleOcr::pickTitle(const QString &raw, const QString &appName)
             else if (c.isLetterOrNumber())
                 ++latin;
         }
+        // 「—」「一一」「。。」这类全是符号/单笔画的，是标题栏图标被认成字了
+        static const QString junkOnly = QStringLiteral("—–-—_=·.。一丨｜二");
+        bool onlyJunk = true;
+        for (const QChar &c : title) {
+            if (c == QLatin1Char(' '))
+                continue;
+            if (!junkOnly.contains(c)) {
+                onlyJunk = false;
+                break;
+            }
+        }
+        if (onlyJunk)
+            continue;
+
         // 纯拉丁的短串（ZAG、RSI 这种 3 个字母）基本都是把汉字认歪了，宁可当作没认出来
         if (han < 2) {
             if (latin < 4)

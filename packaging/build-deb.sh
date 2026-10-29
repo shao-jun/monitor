@@ -5,7 +5,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-1.3.0}"
+VERSION="${1:-1.3.1}"
 ARCH="${2:-$(dpkg --print-architecture)}"
 PKG=app-usage-monitor
 BUILD_DIR="$HERE/build-deb"

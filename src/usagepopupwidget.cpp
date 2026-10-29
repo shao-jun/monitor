@@ -19,7 +19,7 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.3.0"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.3.1"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>
@@ -268,7 +268,8 @@ public:
     {
         setWordWrap(false);
         setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-        setToolTip(text);
+        // tooltip 只在真的被截断时才给，一行放得下的不要弹提示
+        setToolTip(QString());
     }
 
     QSize sizeHint() const override { return QSize(0, fontMetrics().height() + 2); }
@@ -277,10 +278,11 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override
     {
+        const QString shown = fontMetrics().elidedText(m_text, Qt::ElideRight, qMax(0, width()));
+        setToolTip(shown == m_text ? QString() : m_text);
         QPainter p(this);
         p.setPen(palette().color(QPalette::WindowText));
-        p.drawText(rect(), Qt::AlignLeft | Qt::AlignVCenter,
-                   fontMetrics().elidedText(m_text, Qt::ElideRight, qMax(0, width())));
+        p.drawText(rect(), Qt::AlignLeft | Qt::AlignVCenter, shown);
     }
 
 private:
