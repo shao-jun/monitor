@@ -1,4 +1,6 @@
 #include "chattitleocr.h"
+#include <QFileInfo>
+#include <QDateTime>
 
 #include <QDir>
 #include <QFile>
@@ -14,6 +16,38 @@
 
 // X11 宏会污染 Qt 头文件，放在最后
 #include "x11windowinfo.h"
+
+namespace {
+
+// 可疑识别（短纯字母）留证：~/.cache/app-usage-monitor/ocr/ 下留最近 20 张条带图
+QString suspectDir()
+{
+    const QString dir = QDir::home().filePath(QStringLiteral(".cache/app-usage-monitor/ocr"));
+    QDir().mkpath(dir);
+    return dir;
+}
+
+QString suspectPath(const QString &title)
+{
+    const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+    QRegExp bad(QStringLiteral("[^A-Za-z0-9]"));
+    const QString safe = QString(title).replace(bad, QStringLiteral("_"));
+    return QDir(suspectDir()).filePath(QStringLiteral("%1-%2.png").arg(stamp, safe));
+}
+
+void saveSuspectText(const QString &raw)
+{
+    QFile f(QDir(suspectDir()).filePath(QStringLiteral("last-raw.txt")));
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        f.write(raw.toUtf8());
+
+    QDir dir(suspectDir());
+    const QFileInfoList list = dir.entryInfoList({QStringLiteral("*.png")}, QDir::Files, QDir::Name);
+    for (int i = 0; i < list.size() - 20; ++i)
+        QFile::remove(list.at(i).absoluteFilePath());
+}
+
+} // namespace
 
 ChatTitleOcr::ChatTitleOcr(X11WindowInfo *x11)
     : m_x11(x11)
@@ -103,13 +137,25 @@ QString ChatTitleOcr::titleForWindow(unsigned long winId, const QString &appName
             out = QString::fromUtf8(proc.readAllStandardOutput());
         else
             proc.kill();
-        QFile::remove(path);
-
         const QString title = pickTitle(out, appName);
         if (!title.isEmpty()) {
+            // 只有拉丁字母、又特别短的（「ZAG」这种），八成是 OCR 认歪了，
+            // 留一张条带图 + 原始文本，方便回头核对到底读到了什么
+            bool latinOnly = !title.isEmpty();
+            for (const QChar &c : title) {
+                if (c.script() == QChar::Script_Han) {
+                    latinOnly = false;
+                    break;
+                }
+            }
+            if (latinOnly && title.size() <= 5 && img.save(suspectPath(title), "PNG"))
+                saveSuspectText(out);
+
             m_goodLayout = i;
+            QFile::remove(path);
             return title;
         }
+        QFile::remove(path);
     }
     return QString();
 }

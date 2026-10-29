@@ -5,6 +5,28 @@
 #include <algorithm>
 #include <QHash>
 
+namespace {
+
+bool isWxWork(const QString &app)
+{
+    return app.contains(QStringLiteral("企业微信")) || app.contains(QStringLiteral("wxwork"), Qt::CaseInsensitive);
+}
+
+// 企业微信那一侧不写「企业微信」，写具体聊的是谁：私聊是人名，群聊是群名
+QString sideLabel(const QString &app, const QString &ctx)
+{
+    if (!isWxWork(app) || ctx.isEmpty() || ctx == app || isWxWork(ctx))
+        return app;
+    return ctx;
+}
+
+QString elide(const QString &text, int max = 24)
+{
+    return text.size() > max ? text.left(max - 1) + QChar(0x2026) : text;
+}
+
+} // namespace
+
 SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
 {
     SwitchStats st;
@@ -13,6 +35,7 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
         return st;
 
     QHash<QString, int> transitions;
+    QHash<QString, int> chatHops;
     QHash<QString, int> chats;
 
     for (const SwitchRow &r : rows) {
@@ -30,11 +53,20 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
         if (r.ts > st.lastTs)
             st.lastTs = r.ts;
 
-        if (!r.fromApp.isEmpty() && !r.toApp.isEmpty() && r.fromApp != r.toApp)
-            ++transitions[QStringLiteral("%1 → %2").arg(r.fromApp, r.toApp)];
+        // 企业微信内部换会话也算一次跳转（「荷浩 → 项目群」），所以要按具体会话拼标签，
+        // 不能再用 fromApp != toApp 过滤
+        const QString fromSide = elide(sideLabel(r.fromApp, r.fromCtx));
+        const QString toSide = elide(sideLabel(r.toApp, r.toCtx));
+        if (!fromSide.isEmpty() && !toSide.isEmpty() && fromSide != toSide)
+            ++transitions[QStringLiteral("%1 → %2").arg(fromSide, toSide)];
 
-        if (r.kind == QLatin1String("chat") && !r.toCtx.isEmpty())
-            ++chats[r.toCtx];
+        if (r.kind == QLatin1String("chat")) {
+            if (!r.toCtx.isEmpty())
+                ++chats[r.toCtx];
+            // 企业微信内部从一个会话跳到另一个会话，单独统计：这不是「换应用」
+            if (!r.fromCtx.isEmpty() && !r.toCtx.isEmpty() && r.fromCtx != r.toCtx)
+                ++chatHops[QStringLiteral("%1 → %2").arg(elide(r.fromCtx), elide(r.toCtx))];
+        }
     }
 
     for (int h = 0; h < 24; ++h) {
@@ -57,6 +89,7 @@ SwitchStats computeSwitchStats(const QVector<SwitchRow> &rows)
     };
 
     st.topTransitions = top(transitions, 5);
+    st.topChatHops = top(chatHops, 5);
     st.topChats = top(chats, 5);
 
     if (st.total > 1 && st.lastTs > st.firstTs) {
