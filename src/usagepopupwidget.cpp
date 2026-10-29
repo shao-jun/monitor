@@ -19,7 +19,7 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.2.9"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.3.0"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>
@@ -258,6 +258,35 @@ private:
 // 可切「在岗」（去掉锁屏，只看操作/查看分钟）与「曲线」；下方附按主导状态着色的状态条。
 
 // 每小时切换次数的小柱状图
+// 单行显示、超宽就省略号：会话名/群名很长时不要把行高撑成两行
+class ElidedLabel : public QLabel
+{
+public:
+    explicit ElidedLabel(const QString &text, QWidget *parent = nullptr)
+        : QLabel(parent)
+        , m_text(text)
+    {
+        setWordWrap(false);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+        setToolTip(text);
+    }
+
+    QSize sizeHint() const override { return QSize(0, fontMetrics().height() + 2); }
+    QSize minimumSizeHint() const override { return QSize(0, fontMetrics().height() + 2); }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setPen(palette().color(QPalette::WindowText));
+        p.drawText(rect(), Qt::AlignLeft | Qt::AlignVCenter,
+                   fontMetrics().elidedText(m_text, Qt::ElideRight, qMax(0, width())));
+    }
+
+private:
+    QString m_text;
+};
+
 class SwitchChartWidget : public QWidget
 {
 public:
@@ -1096,9 +1125,8 @@ void UsagePopupWidget::rebuildSwitchView()
         QHBoxLayout *h = new QHBoxLayout(row);
         h->setContentsMargins(0, 1, 0, 1);
         h->setSpacing(6);
-        QLabel *l = new QLabel(left);
+        QLabel *l = new ElidedLabel(left);
         l->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(primaryText()));
-        l->setWordWrap(true);
         QLabel *r = new QLabel(right);
         r->setStyleSheet(QStringLiteral("color:%1; font-size:11px;").arg(secondaryText()));
         h->addWidget(l, 1);
