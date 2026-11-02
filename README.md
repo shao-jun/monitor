@@ -6,10 +6,10 @@
 
 ## 下载
 
-现成的安装包（amd64）：[app-usage-monitor_1.3.2_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
+现成的安装包（amd64）：[app-usage-monitor_1.4.0_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.3.2_amd64.deb
+sudo dpkg -i app-usage-monitor_1.4.0_amd64.deb
 kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 ```
 
@@ -105,6 +105,18 @@ app-usage-monitor-export --out /tmp/dump    # 指定目录
 | `summary.csv` | 每天一行：切换次数、碎片切换、最长专注、事件次数与分钟数 |
 
 数据只在本机，导出的 CSV 也只写到本机目录，不上传任何地方。
+
+## 切换月报（本地网页）
+
+```bash
+app-usage-monitor-report                 # 最近 30 天 → ~/下载/app-usage-switch-report.html
+app-usage-monitor-report --days 14
+app-usage-monitor-report --from 2026-10-01 --to 2026-10-31 --out /tmp/report.html
+```
+
+生成的是一张**单文件 HTML**，样式和图表都内嵌（SVG），不加载任何外部资源，断网也能双击打开。内容：最近 7 天 vs 前 7 天的趋势判断、6 个 KPI、每天切换柱状图 + 7 天滑动平均、24 小时 × 日期热力图（看高危时段）、逐日明细表。
+
+页面按「有效切换」统计，口径写在页面上：去掉停留 <3 秒的抖动、间隔 ≥20 分钟（午休/长会回来）、以及任务栏/控制中心/文件选择框这类系统弹层；原始记录在数据库和导出 CSV 里都保留。
 
 ## 上下文切换
 
@@ -221,7 +233,7 @@ kill "$(pgrep -x dde-dock)"   # 由 startdde 自动拉起
 对方收到后：
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.3.2_amd64.deb
+sudo dpkg -i app-usage-monitor_1.4.0_amd64.deb
 # 装完重启一次任务栏，图标才会出现
 kill $(pgrep -x dde-dock)
 ```
@@ -263,7 +275,8 @@ rm -rf ~/.local/share/app-usage-monitor   # 连同历史数据一起删除（可
 │   ├── switchstats.*             # 切换统计（次数/间隔/高峰/高频跳转，纯计算可单测）
 │   ├── addeventdialog.*          # 添加事件对话框
 ├── tools/
-│   └── export.cpp                # app-usage-monitor-export：导出 CSV
+│   ├── export.cpp                # app-usage-monitor-export：导出 CSV
+│   └── report.py                 # app-usage-monitor-report：生成切换月报网页
 │   └── usageentry.h              # 数据结构
 ├── packaging/
 │   ├── build-deb.sh                    # 打 deb

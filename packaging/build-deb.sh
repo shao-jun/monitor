@@ -5,7 +5,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-1.3.2}"
+VERSION="${1:-1.4.0}"
 ARCH="${2:-$(dpkg --print-architecture)}"
 PKG=app-usage-monitor
 BUILD_DIR="$HERE/build-deb"
@@ -24,6 +24,7 @@ rm -rf "$STAGE"
 install -D -m 755 "$SO" "$STAGE/usr/lib/dde-dock/plugins/libapp-usage-monitor.so"
 install -D -m 755 "$HERE/packaging/app-usage-monitor-rest" "$STAGE/usr/bin/app-usage-monitor-rest"
 install -D -m 755 "$BUILD_DIR/out/app-usage-monitor-export" "$STAGE/usr/bin/app-usage-monitor-export"
+install -D -m 755 "$HERE/tools/report.py" "$STAGE/usr/bin/app-usage-monitor-report"
 install -D -m 644 "$HERE/README.md" "$STAGE/usr/share/doc/$PKG/README.md"
 install -D -m 644 "$HERE/LICENSE" "$STAGE/usr/share/doc/$PKG/copyright"
 mkdir -p "$STAGE/usr/share/doc/$PKG"
@@ -45,7 +46,7 @@ printf 'Source: %s\n\nPackage: %s\nArchitecture: %s\n' "$PKG" "$PKG" "$ARCH" > "
 SHDEPS="$(cd "$TMPCTRL" && dpkg-shlibdeps -O "$STAGE/usr/lib/dde-dock/plugins/libapp-usage-monitor.so" 2>/dev/null \
           | sed -n 's/^shlibs:Depends=//p')"
 [[ -n "$SHDEPS" ]] || SHDEPS="libc6, libstdc++6, libqt5core5a, libqt5gui5, libqt5widgets5, libqt5sql5, libqt5dbus5, libx11-6"
-DEPENDS="$SHDEPS, libqt5sql5-sqlite, xprintidle, dde-dock"
+DEPENDS="$SHDEPS, libqt5sql5-sqlite, xprintidle, dde-dock, python3"
 
 INSTALLED_SIZE="$(du -sk --exclude=DEBIAN "$STAGE" | cut -f1)"
 

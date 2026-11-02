@@ -108,8 +108,17 @@ void ContextSwitchMonitor::tick()
         m_lastSince = now;
         return;
     }
-    if (key == m_lastKey)
+    if (key == m_lastKey) {
+        m_candidateKey.clear();
         return;
+    }
+
+    // 同一个应用里换了会话：要连续两次采样都读到同一个会话名才认，
+    // OCR 一次认歪就会造出一个假切换（碎片切换虚高的主因）
+    if (appName == m_lastApp && m_candidateKey != key) {
+        m_candidateKey = key;
+        return;
+    }
 
     SwitchRow row;
     row.ts = now;
@@ -123,6 +132,7 @@ void ContextSwitchMonitor::tick()
     row.dwellSec = int(qMax<qint64>(0, now - m_lastSince));
     m_storage->addSwitch(QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd")), row);
 
+    m_candidateKey.clear();
     m_lastKey = key;
     m_lastApp = appName;
     m_lastCtx = ctx;

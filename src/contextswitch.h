@@ -43,6 +43,7 @@ private:
     QTimer m_timer;
 
     QString m_lastKey;
+    QString m_candidateKey;
     QString m_lastApp;
     QString m_lastCtx;
     qint64 m_lastSince = 0;
