@@ -100,6 +100,18 @@ TOPICS = [
 ]
 
 
+def single_person(conv_id, users, self_uid):
+    """一对一会话的 conv_id 是 S:<我>_<对方>；群是 R:<id>。返回对方名字，群返回空。"""
+    conv_id = str(conv_id or "")
+    if conv_id.startswith("S:"):
+        others = [p for p in conv_id[2:].split("_") if p and p != self_uid]
+        if len(others) == 1 and others[0] in users:
+            return users[others[0]]
+    if conv_id in users:
+        return users[conv_id]
+    return ""
+
+
 def classify(text, conversation=""):
     low = (text or "").casefold()
     for name, words in TOPICS:
@@ -160,7 +172,7 @@ def load_wecom(days):
         ts = wl._norm_ts(row["send_time"])
         topic = classify(text, conv)
         conv_id = row.get("conv_id", "")
-        person = users.get(str(conv_id))
+        person = single_person(conv_id, users, self_uid)
         total += 1
         per_day[datetime.fromtimestamp(ts).date()] += 1
         hours[datetime.fromtimestamp(ts).hour] += 1
