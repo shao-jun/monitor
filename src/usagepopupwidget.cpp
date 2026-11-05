@@ -800,6 +800,11 @@ UsagePopupWidget::UsagePopupWidget(UsageStorage *storage, QWidget *parent)
     switchPageLayout->addWidget(switchScroll, 1);
     m_stack->addWidget(switchPage);
 
+    // 面板里的按钮一律不接收焦点：Tab 焦点框会在第一个按钮（「时长」）外面画一圈
+    // 圆角高亮，打开面板就顶着那个圈，看起来跟另外两个按钮长得不一样
+    for (QPushButton *b : findChildren<QPushButton *>())
+        b->setFocusPolicy(Qt::NoFocus);
+
     updateTitle();
 
     reload();
@@ -1165,6 +1170,7 @@ void UsagePopupWidget::rebuildSwitchView()
             del->setFixedSize(16, 16);
             del->setFlat(true);
             del->setCursor(Qt::PointingHandCursor);
+            del->setFocusPolicy(Qt::NoFocus);
             del->setStyleSheet(QStringLiteral("QPushButton{border:none;color:%1;font-size:12px;padding:0;}").arg(secondaryText()));
             const int id = e.id;
             connect(del, &QPushButton::clicked, this, [this, id]() {
@@ -1187,6 +1193,7 @@ void UsagePopupWidget::rebuildSwitchView()
     QPushButton *add = new QPushButton(QStringLiteral("＋ 添加事件"));
     add->setFlat(true);
     add->setCursor(Qt::PointingHandCursor);
+    add->setFocusPolicy(Qt::NoFocus);
     add->setStyleSheet(QStringLiteral("QPushButton{border:none;text-align:left;color:%1;font-size:12px;padding:4px 0;}")
                            .arg(primaryText()));
     connect(add, &QPushButton::clicked, this, &UsagePopupWidget::addEvent);
