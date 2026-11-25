@@ -30,6 +30,32 @@ static QString processNameOf(const X11WindowInfo::ActiveApp &a)
     return QString::fromLocal8Bit(b);
 }
 
+// Chromium 系在用 --user-data-dir 时会把自己的 WM_CLASS 设成
+// "google-chrome (/home/x/.config/google-chrome)" 这种带路径的形式，
+// 同一个浏览器于是被拆成好几个 app key，时长统计就散了。这里只保留主名字。
+static QString normalizeAppId(const QString &raw)
+{
+    QString s = raw.trimmed().toLower();
+    const int paren = s.indexOf(QLatin1String(" ("));
+    if (paren > 0)
+        s = s.left(paren);
+    return s.trimmed();
+}
+
+// Wine/Chromium 的辅助进程（崩溃上报、横幅、预加载）偶尔会短暂拿到焦点，
+// 它们既不是用户看到的应用，时长也只有几秒，记下来只会污染应用列表。
+static bool isHelperProcess(const QString &id)
+{
+    static const char *kHelpers[] = {"crashpad_handler", "deepin-wine-banner",
+                                     "wine-preloader", "winewrapper", "wineserver",
+                                     "chrome_crashpad_handler"};
+    for (const char *h : kHelpers) {
+        if (id.contains(QLatin1String(h)))
+            return true;
+    }
+    return false;
+}
+
 UsageTracker::UsageTracker(QObject *parent)
     : QObject(parent)
     , m_x11(new X11WindowInfo)
@@ -80,10 +106,6 @@ void UsageTracker::tick()
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
     const qint64 idle = static_cast<qint64>(m_idle->idleMilliseconds());
 
-    const QDateTime startDt = QDateTime::fromMSecsSinceEpoch(m_lastTickMs);
-    const QString startDate = startDt.date().toString(QStringLiteral("yyyy-MM-dd"));
-    const int startHour = startDt.time().hour();
-
     if (isLocked()) {
         const qint64 dt = now - m_lastTickMs;
         if (!m_locked) {
@@ -92,7 +114,7 @@ void UsageTracker::tick()
             flushNow();
         } else if (dt > 0) {
             m_lockBuffer[QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd"))] += dt;
-            m_hourBuffer[startDate][startHour].lockMs += dt;
+            attributeHourly(m_lastTickMs, now, false, true);
             // 锁屏满 3 分钟算一次中断，连续工作时长清零；不足 3 分钟则保留
             m_rest.addLock(dt);
             emit continuousWorkChanged(m_rest.continuousMs());
@@ -120,10 +142,19 @@ void UsageTracker::tick()
     QString icon;
     if (active.valid) {
         appId = active.wmClassInstance.isEmpty() ? procName : active.wmClassInstance;
-        appId = appId.trimmed().toLower();
+        appId = normalizeAppId(appId);
         if (appId.isEmpty())
             appId = active.wmClass.toLower();
 
+        // 辅助进程不记账，沿用上一个真实应用，避免把几秒钟算到 crashpad 头上
+        if (isHelperProcess(appId) || isHelperProcess(procName))
+            active.valid = false;
+    }
+
+    if (!active.valid) {
+        // 没有有效前台窗口（锁屏、辅助进程抢焦点）：保持上一个应用不动
+        appId = m_lastApp;
+    } else {
         const AppMeta meta = m_registry->resolve(active.wmClassInstance, active.wmClass, procName);
         dispName = meta.name;
         icon = meta.icon;
@@ -165,12 +196,7 @@ void UsageTracker::tick()
             u.activeMs = dt;
         m_buffer[m_lastDate][m_lastApp] += u;
 
-        HourlyUsage h;
-        if (viewing)
-            h.viewingMs = dt;
-        else
-            h.activeMs = dt;
-        m_hourBuffer[m_lastDate][startHour] += h;
+        attributeHourly(m_lastTickMs, now, viewing, false);
 
         // 操作、查看都算连续工作；满 30 分钟提醒一次休息
         if (m_rest.addWork(dt))
@@ -186,6 +212,25 @@ void UsageTracker::tick()
     m_flushCounter += dt;
     if (m_flushCounter >= kAutoFlushIntervalMs)
         flushNow();
+}
+
+void UsageTracker::attributeHourly(qint64 fromMs, qint64 toMs, bool viewing, bool locked)
+{
+    while (fromMs < toMs) {
+        const QDateTime cur = QDateTime::fromMSecsSinceEpoch(fromMs);
+        const qint64 hourEnd = QDateTime(cur.date(), QTime(cur.time().hour(), 0, 0))
+                                   .addSecs(3600).toMSecsSinceEpoch();
+        const qint64 seg = qMin<qint64>(toMs, hourEnd);
+        HourlyUsage u;
+        if (locked)
+            u.lockMs = seg - fromMs;
+        else if (viewing)
+            u.viewingMs = seg - fromMs;
+        else
+            u.activeMs = seg - fromMs;
+        m_hourBuffer[cur.date().toString(QStringLiteral("yyyy-MM-dd"))][cur.time().hour()] += u;
+        fromMs = seg;
+    }
 }
 
 bool UsageTracker::isLocked()

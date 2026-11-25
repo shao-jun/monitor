@@ -122,14 +122,16 @@ void ContextSwitchMonitor::tick()
 
     SwitchRow row;
     row.ts = now;
-    // 只有企业微信里换会话才算 chat；别的应用换了标题（SmartGit 换仓库、浏览器换页）仍是窗口切换，
-    // 否则「企业微信会话 Top」里会混进一堆无关的标题
-    row.kind = (appName == m_lastApp && isWxWork) ? QStringLiteral("chat") : QStringLiteral("window");
+    // kind 三档：chat = 企业微信内换会话；inner = 同一个应用内换窗口/换页（Chrome 换标签、
+    // 文件管理器换目录）；window = 真正的跨应用切换。报表默认只用 window + chat，
+    // 否则「切换数」「碎片率」会被应用内动作撑大一倍。
+    row.kind = QString::fromLatin1(
+        SwitchRule::kindName(SwitchRule::kindFor(appName == m_lastApp, isWxWork)));
     row.fromApp = m_lastApp;
     row.toApp = appName;
     row.fromCtx = m_lastCtx;
     row.toCtx = ctx;
-    row.dwellSec = int(qMax<qint64>(0, now - m_lastSince));
+    row.dwellSec = SwitchRule::clampDwellSec(now - m_lastSince);
     m_storage->addSwitch(QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd")), row);
 
     m_candidateKey.clear();

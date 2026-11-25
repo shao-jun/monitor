@@ -19,7 +19,7 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #ifndef APP_USAGE_VERSION
-#define APP_USAGE_VERSION "1.4.0"   // 由 CMake 定义，单独编译源码时的兜底
+#define APP_USAGE_VERSION "1.5.0"   // 由 CMake 定义，单独编译源码时的兜底
 #endif
 
 #include <QDesktopServices>

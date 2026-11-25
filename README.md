@@ -6,10 +6,10 @@
 
 ## 下载
 
-现成的安装包（amd64）：[app-usage-monitor_1.4.0_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
+现成的安装包（amd64）：[app-usage-monitor_1.5.0_amd64.deb](releases/app-usage-monitor_1.2.0_amd64.deb)
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.4.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.5.0_amd64.deb
 kill $(pgrep -x dde-dock)   # 重启任务栏让插件出现
 ```
 
@@ -133,7 +133,36 @@ app-usage-monitor-report --from 2026-10-01 --to 2026-10-31 --out /tmp/report.htm
 | 外部事件 | 手工记的会议/被叫走，逐条时间与时长 |
 | 逐日明细 | 12 列明细，含原始记录数方便和导出 CSV 对照 |
 
-页面按「有效切换」统计，口径写在页面上：去掉停留 <3 秒的抖动、间隔 ≥20 分钟（午休/长会回来）、以及任务栏/控制中心/文件选择框这类系统弹层；原始记录在数据库和导出 CSV 里都保留。
+页面按「有效切换」统计，口径写在页面上：去掉同一应用内换窗口/换页（`kind=inner`，Chrome 换标签、资源管理器换目录）、停留 <3 秒的抖动、间隔 ≥20 分钟（午休/长会回来）、以及任务栏/控制中心/文件选择框这类系统弹层；原始记录在数据库和导出 CSV 里都保留。只有 `window`（跨应用）+ `chat`（企业微信内换会话）算切换。
+
+## 数据体检（先查数据本身的问题）
+
+同一份库里除了行为，还有采集口径的坑。`tools/insight_report.py` 先把质量问题量化出来，再看行为模式：
+
+```bash
+tools/insight_report.py                 # 全量 → ~/下载/monitor-数据洞察.html
+tools/insight_report.py --days 21
+tools/insight_report.py --check         # 只体检，问题打到终端；有高危项时退出码 1（给 cron 用）
+```
+
+体检项：应用 key 分裂（同一个应用记成多个 key）、单小时三段之和超过 60 分钟、`dwell_sec` 跨天没截断、零停留与同秒重复、周末空开锁屏、三张表覆盖天数不一致、应用内切换占比。
+1.5.0 起采集端已经修掉前四项的成因（见下节），历史数据保留原样，报表口径对两边都兼容。
+
+## 采集口径（1.5.0）
+
+| 项 | 规则 | 为什么 |
+| --- | --- | --- |
+| 切换类型 | `kind=window` 跨应用 / `chat` 企业微信内换会话 / `inner` 同应用内换窗口或换页 | 应用内动作不是上下文切换，混在一起会让切换数虚高一倍 |
+| 停留时长 | `dwell_sec` 上限 20 分钟 | 休眠、关机回来时 gap 可能是几十小时，不截断会造出「停留 64 小时」 |
+| 应用 key | 去掉 Chromium 的 ` (--user-data-dir 路径)` 后缀；crashpad、deepin-wine-banner、wine 预加载不记账 | 同一个 Chrome 会被记成 7 个 key，时长统计被拆散 |
+| 小时用量 | 一个采样区间跨整点时，按整点切分记到两个小时 | 整段记到起始小时会出现单小时 60.05 分钟 |
+
+规则抽成了纯函数（`SwitchRule`，在 `src/contextswitch.h`），单测不用起任务栏：
+
+```bash
+g++ -O0 -o tests/test_switch_rule tests/test_switch_rule.cpp $(pkg-config --cflags --libs Qt5Core) -fPIC
+./tests/test_switch_rule
+```
 
 ## 工作内容分析（企业微信 + Chrome）
 
@@ -283,7 +312,7 @@ kill "$(pgrep -x dde-dock)"   # 由 startdde 自动拉起
 对方收到后：
 
 ```bash
-sudo dpkg -i app-usage-monitor_1.4.0_amd64.deb
+sudo dpkg -i app-usage-monitor_1.5.0_amd64.deb
 # 装完重启一次任务栏，图标才会出现
 kill $(pgrep -x dde-dock)
 ```

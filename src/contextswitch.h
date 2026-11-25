@@ -5,6 +5,28 @@
 #include <QString>
 #include <QTimer>
 
+// 切换类型与停留时长截断：抽成纯函数，offscreen 单测直接调，不用起 X
+namespace SwitchRule {
+enum Kind { Window = 0, Inner = 1, Chat = 2 };
+// 同一应用内：企业微信算 chat（换会话），其他应用算 inner（换标签/换目录）
+inline Kind kindFor(bool sameApp, bool wxwork)
+{
+    if (!sameApp)
+        return Window;
+    return wxwork ? Chat : Inner;
+}
+inline const char *kindName(Kind k)
+{
+    return k == Chat ? "chat" : (k == Inner ? "inner" : "window");
+}
+// 休眠/关机回来时 gap 可能是几十小时，不截断会造出「停留 64 小时」
+inline int clampDwellSec(qint64 gapSec)
+{
+    const qint64 kMax = 20 * 60;
+    return static_cast<int>(gapSec < 0 ? 0 : (gapSec > kMax ? kMax : gapSec));
+}
+}
+
 class X11WindowInfo;
 class AppRegistry;
 class UsageStorage;

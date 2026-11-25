@@ -12,6 +12,7 @@ import datetime as dt
 import html
 import os
 import sqlite3
+import sys
 import statistics as st
 from datetime import timedelta
 
@@ -100,6 +101,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=0, help="只看最近 N 天，默认全部")
     ap.add_argument("--out", default=os.path.expanduser("~/下载/monitor-数据洞察.html"))
+    ap.add_argument("--check", action="store_true",
+                    help="只做数据体检，把问题打到终端；有高危问题时退出码为 1（给 cron 用）")
     args = ap.parse_args()
 
     db = sqlite3.connect("file:%s?mode=ro" % DB, uri=True)
@@ -135,11 +138,56 @@ def main():
     zero_dwell = [r for r in sw if r[7] == 0]
     same_switch = [r for r in sw if r[3] == r[4] and r[5] == r[6]]
     ts_dup = [k for k, c in collections.Counter(r[1] for r in sw).items() if c > 1]
-    intra = [r for r in sw if r[3] == r[4]]
+    # kind=inner 是 1.5.0 之后新写的；历史行没有这个值，用 from_app==to_app 兜底
+    intra = [r for r in sw if r[2] == "inner" or r[3] == r[4]]
     chat = [r for r in sw if r[2] == "chat"]
-    cross = [r for r in sw if r[3] != r[4]]
+    cross = [r for r in sw if r[2] != "inner" and r[3] != r[4]]
     weekend_lock_only = [d for d in days
                          if dt.date.fromisoformat(d).weekday() >= 5 and work.get(d, 0) < 1]
+
+    # 体检清单：HTML 里的「数据问题」和 --check 的终端输出共用这一份
+    problems = []
+    for name, keys in sorted(dup_names.items(), key=lambda kv: -len(kv[1])):
+        problems.append(("mid", "应用 key 分裂：%s" % name,
+                         "同一个应用记成 %d 个 key（%s），按时长排序会把它拆散"
+                         % (len(keys), "、".join(sorted(k[:28] for k in keys)[:4]))))
+    if over_hour:
+        problems.append(("mid", "单小时三段之和超过 60 分钟",
+                         "%d 个小时超过，最大 %.2f 分钟——采集端按 tick 累加，跨整点的间隔被两边都算了一次"
+                         % (len(over_hour), over_min)))
+    if long_dwell:
+        problems.append(("high", "dwell 跨天没截断",
+                         "%d 条记录停留超过 12 小时，最长 %.1f 小时——休眠/关机期间的间隔被当成「停留」"
+                         % (len(long_dwell), max(r[7] for r in long_dwell) / 3600.0)))
+    if zero_dwell:
+        problems.append(("low", "零停留记录", "%d 条 dwell_sec=0，同一秒内连着切" % len(zero_dwell)))
+    if ts_dup:
+        problems.append(("low", "同一秒重复记录", "%d 个时间戳有重复行" % len(ts_dup)))
+    if weekend_lock_only:
+        problems.append(("mid", "周末空开锁屏",
+                         "%d 个周末日只有锁屏记录、没有用时记录，锁屏时长不能当离岗时长"
+                         % len(weekend_lock_only)))
+    sw_day_set = {r[0] for r in sw}
+    if sw_day_set and len(sw_day_set) < len(days):
+        problems.append(("mid", "三张表覆盖天数不一致",
+                         "usage %d 天 / switches %d 天，混着算分母会算出矛盾的日均"
+                         % (len({r[0] for r in usage}), len(sw_day_set))))
+    if intra:
+        problems.append(("high", "一半的「切换」其实是应用内换窗口",
+                         "%d/%d 次（%.0f%%）from_app==to_app，跨应用只有 %d 次"
+                         % (len(intra), len(sw), 100.0 * len(intra) / max(1, len(sw)), len(cross))))
+
+    if args.check:
+        order = {"high": 0, "mid": 1, "low": 2}
+        tag = {"high": "高", "mid": "中", "low": "低"}
+        for lvl, title, detail in sorted(problems, key=lambda p: order[p[0]]):
+            print("[%s] %s" % (tag[lvl], title))
+            print("     %s" % detail)
+        print("\n共 %d 条（高 %d / 中 %d / 低 %d）"
+              % (len(problems), sum(1 for p in problems if p[0] == "high"),
+                 sum(1 for p in problems if p[0] == "mid"),
+                 sum(1 for p in problems if p[0] == "low")))
+        return 1 if any(p[0] == "high" for p in problems) else 0
 
     u0, u1 = (min(days), max(days)) if days else ("-", "-")
     sw_days = sorted({r[0] for r in sw})
@@ -159,9 +207,8 @@ def main():
     A('<div><b>%d 次</b><span>上下文切换（%d 天）</span></div>' % (len(sw), len(sw_days)))
     A('<div><b>%.0f%%</b><span>切换发生在同一应用内</span></div>'
       % (100.0 * len(intra) / max(1, len(sw))))
-    A('<div><b>%d</b><span>检测到的数据问题</span></div>'
-      % (len(dup_names) + (1 if over_hour else 0) + (1 if long_dwell else 0)
-         + (1 if events and len(events) < 10 else 0) + (1 if zero_dwell else 0)))
+    A('<div><b>%d</b><span>检测到的数据问题（高 %d）</span></div>'
+      % (len(problems), sum(1 for p in problems if p[0] == "high")))
     A("</div>")
 
     # ---------- 数据质量 ----------
@@ -397,9 +444,12 @@ def main():
          max(1, sum(l for d, l in q(db, "select date, sum(lock_ms)/60000.0 from hourly_usage "
                                        "where hour between 9 and 18 group by date")
                      if d in workdays) + sum(work[d] for d in workdays))))
-    A('<div class="finding warn"><b>建议改三处</b>①切换记录加一个 <code>scope</code> 字段区分应用内/跨应用；'
-      '②<code>dwell_sec</code> 超过 20 分钟按 20 分钟截断；③应用 key 归并（WM_CLASS 之外再按 display_name 合并，'
-      '把 crashpad、banner 这类壳进程排除）。这三处改完，切换和碎片率才有可比性。</div>')
+    A('<div class="finding warn"><b>1.5.0 已改（只影响新数据）</b>'
+      '①切换记录加 <code>kind=inner</code> 区分应用内换窗口/换页，报表默认剔除；'
+      '②<code>dwell_sec</code> 采集端截到 20 分钟，休眠/关机不再造出 60 小时的停留；'
+      '③应用 key 去掉 Chromium 的 <code> (--user-data-dir 路径)</code> 后缀，crashpad、banner、wine 预加载这类壳进程不再记账；'
+      '④小时用量按整点切分，不再出现单小时 60.05 分钟。'
+      '历史数据保留原样，本报告的口径对两边都做了兼容。</div>')
     A("</div>")
 
     A('<div class="note">数据源：%s（只读）。所有数字都是现算的，没有写回数据库。</div>' % esc(DB))
@@ -414,4 +464,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

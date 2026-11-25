@@ -57,6 +57,8 @@ private slots:
 
 private:
     bool isLocked();
+    // 按整点切分累加：一个 tick 跨过整点时，两边各记自己那段
+    void attributeHourly(qint64 fromMs, qint64 toMs, bool viewing, bool locked);
 
     X11WindowInfo *m_x11 = nullptr;
     IdleDetector *m_idle = nullptr;

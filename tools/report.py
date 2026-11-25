@@ -96,7 +96,7 @@ def load(db_path, start, end):
     per_day = {}
     for d in days:
         per_day[d.isoformat()] = {
-            "date": d, "total": 0, "raw": 0, "frag": 0, "hours": [0] * 24,
+            "date": d, "total": 0, "raw": 0, "inner": 0, "frag": 0, "hours": [0] * 24,
             "dwells": [], "chats": set(), "apps": defaultdict(int),
             "active_ms": 0, "viewing_ms": 0, "lock_ms": 0,
             "focus_blocks": 0, "focus_sec": 0, "longest_focus": 0,
@@ -132,6 +132,12 @@ def load(db_path, start, end):
         from_app = r["from_app"] or ""
         to_app = r["to_app"] or ""
         dwell = r["dwell_sec"] or 0
+
+        # 应用内换窗口/换页（Chrome 换标签、资源管理器换目录、企业微信换会话之外的同应用动作）
+        # 不是「上下文切换」，单列计数但不进有效切换，否则切换数虚高一倍。
+        if r["kind"] == "inner" or (from_app and from_app == to_app):
+            rec["inner"] += 1
+            continue
 
         # 停留时长分布和「在某个应用里待多久」用原始 dwell（不含系统弹层）
         if from_app and not any(a in from_app for a in SYSTEM_APPS):
@@ -938,8 +944,10 @@ def render(data, s, title, start, end):
 <div class="card" id="method">
  <h2>统计口径</h2>
  <div class="hint" style="margin:0">
-  <b>有效切换</b>＝原始记录去掉：① 上一屏停留不到 3 秒就切走（焦点/OCR 抖动）；
-  ② 间隔 20 分钟以上（午休、长会后回来）；③ 系统弹层（任务栏、控制中心、选择文件对话框、剪贴板）。<br>
+  <b>有效切换</b>＝原始记录去掉：① 同一应用内换窗口/换页（Chrome 换标签、资源管理器换目录，
+  kind=inner，单独计数）；② 上一屏停留不到 3 秒就切走（焦点/OCR 抖动）；
+  ③ 间隔 20 分钟以上（午休、长会后回来，且 dwell 本身在采集端已截到 20 分钟）；
+  ④ 系统弹层（任务栏、控制中心、选择文件对话框、剪贴板）。<br>
   <b>碎片切换</b>＝有效切换里上一屏停留不到 10 秒的。<b>专注块</b>＝同一上下文连续停留 15–60 分钟（超过 1 小时视为走开，不计）。<br>
   <b>在岗</b>＝操作 + 查看时长（不含锁屏）；<b>会话</b>＝当天切进去过的企业微信不同会话数。<br>
   <b>相关性</b>＝「每小时切换数」与「该小时在岗分钟」的皮尔逊相关系数，只用有活动的小时。<br>
